@@ -1,0 +1,46 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#map {
+  height: 100%;
+  width: 100%;
+}
+
+nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.5rem 1rem;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+nav a {
+  margin-right: 1rem;
+  font-weight: bold;
+  color: #000;
+  text-decoration: none;
+}
+
+nav .spacer {
+  flex: 1;
+}
+
+.overlay-hidden nav,
+.overlay-hidden .panel {
+  display: none;
+}
+
+.panel {
+  position: absolute;
+  background: rgba(255,255,255,0.8);
+  padding: 1rem;
+  border-radius: 4px;
+  z-index: 900;
+}
