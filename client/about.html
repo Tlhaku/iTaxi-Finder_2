@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About iTaxi-Finder</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div id="topbar">
+    <a href="/">iTaxi-Finder</a>
+    <a href="/">Route Finder</a>
+    <a href="/route-adder.html">Route Adder</a>
+    <a href="/delivery.html">Delivery</a>
+    <a href="/community.html">Community</a>
+    <a href="/registration.html">Registration</a>
+    <a href="/about.html">About</a>
+    <button onclick="toggleUI()">Hide UI</button>
+  </div>
+  <div style="position:absolute;top:60px;left:10px;right:10px;bottom:10px;overflow:auto;background:rgba(255,255,255,0.8);padding:20px;">
+    <h1>About iTaxi-Finder</h1>
+    <p>iTaxi-Finder is a live mapping and analytics platform for South Africa’s minibus-taxi ecosystem. By publishing useful route intel—common routes and variations with frequency ratings, fares, destination hand-signals, and, where available, live taxi locations from a lightweight driver app (even via WhatsApp Live Location)—we make everyday commutes clearer and grow demand for operators. Fleet owners get vehicle usage and location analytics to spot efficiency gains and improve profits. A future-facing parcel-delivery module leverages the existing taxi network for low-cost, near-route deliveries. The Community page surfaces geo-tagged social posts along mapped routes and highlights sponsor partners.</p>
+  </div>
+  <div id="map"></div>
+</body>
+</html>

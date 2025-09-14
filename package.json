@@ -1,0 +1,14 @@
+{
+  "name": "itaxi-finder",
+  "version": "0.1.0",
+  "description": "iTaxi-Finder platform server and static client",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node server.js & sleep 1 && kill $! && echo 'No tests implemented'"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module"
+}
