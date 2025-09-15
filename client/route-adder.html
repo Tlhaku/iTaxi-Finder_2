@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
+<body class="page page-route-adder">
   <div id="topbar">
     <a href="/">iTaxi-Finder</a>
     <a href="/">Route Finder</a>
@@ -17,6 +17,16 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
+  <aside id="editor-tools" class="overlay-panel" aria-label="Route editing tools">
+    <button type="button">Draw</button>
+    <button type="button">Snap to Road</button>
+    <button type="button">Edit segment</button>
+    <button type="button" class="secondary">Undo</button>
+    <button type="button" class="secondary">Redo</button>
+    <button type="button">Save</button>
+    <button type="button" class="secondary">Delete</button>
+    <button type="button" class="secondary">Exit editing</button>
+  </aside>
   <div id="map"></div>
 </body>
 </html>

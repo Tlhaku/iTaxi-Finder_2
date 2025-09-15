@@ -6,45 +6,8 @@
   <title>Community</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
-  <style>
-    .grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 72px;
-      padding: 24px;
-      box-sizing: border-box;
-      max-width: 1100px;
-      margin-left: auto;
-      margin-right: auto;
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.88);
-      box-shadow: 0 30px 60px rgba(15, 23, 42, 0.25);
-      z-index: 400;
-      position: relative;
-    }
-    .grid a {
-      flex: 1 1 calc(25% - 12px);
-      min-width: 180px;
-      padding: 18px 16px;
-      box-sizing: border-box;
-      text-decoration: none;
-      color: #0f172a;
-      font-weight: 600;
-      background: rgba(248, 250, 252, 0.9);
-      border-radius: 14px;
-      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .grid a:hover,
-    .grid a:focus {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 40px rgba(37, 99, 235, 0.2);
-      color: #2563eb;
-    }
-  </style>
 </head>
-<body>
+<body class="page map-background page-community">
   <div id="topbar">
     <a href="/">iTaxi-Finder</a>
     <a href="/">Route Finder</a>
@@ -54,10 +17,14 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
-  <div class="grid">
-    <a href="/community/soweto.html">Soweto</a>
-    <a href="/community/tembisa.html">Tembisa</a>
-    <a href="/community/khayelitsha.html">Khayelitsha</a>
+  <main class="content-panel overlay-panel" aria-labelledby="community-heading">
+    <h1 id="community-heading">Community noticeboard</h1>
+    <p>Explore township-specific hubs for announcements, lost-and-found alerts, and route news. Each page is a canvas for local
+      operators, commuters, and sponsors to share updates anchored to the live map.</p>
+    <div class="community-grid">
+      <a href="/community/soweto.html">Soweto</a>
+      <a href="/community/tembisa.html">Tembisa</a>
+      <a href="/community/khayelitsha.html">Khayelitsha</a>
     <a href="/community/umlazi.html">Umlazi</a>
     <a href="/community/soshanguve.html">Soshanguve</a>
     <a href="/community/mamelodi.html">Mamelodi</a>
@@ -105,7 +72,14 @@
     <a href="/community/kwanobuhle.html">KwaNobuhle</a>
     <a href="/community/thembalethu.html">Thembalethu</a>
     <a href="/community/kwanonqaba.html">KwaNonqaba</a>
-  </div>
+    </div>
+    <div class="social-links">
+      <a href="https://www.facebook.com" target="_blank" rel="noreferrer">Facebook</a>
+      <a href="https://www.instagram.com" target="_blank" rel="noreferrer">Instagram</a>
+      <a href="https://www.tiktok.com" target="_blank" rel="noreferrer">TikTok</a>
+      <a href="https://www.twitter.com" target="_blank" rel="noreferrer">X</a>
+    </div>
+  </main>
   <div id="map"></div>
 </body>
 </html>

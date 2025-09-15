@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
+<body class="page map-background page-registration">
   <div id="topbar">
     <a href="/">iTaxi-Finder</a>
     <a href="/">Route Finder</a>
@@ -17,6 +17,41 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
+  <main class="content-panel overlay-panel" aria-labelledby="registration-heading">
+    <h1 id="registration-heading">Join the iTaxi-Finder network</h1>
+    <p>Register your role to unlock tools tailored for collectors, drivers, depot owners, and partners. We capture just enough
+      information to verify your business, route alignment, and preferred contact channels before activating your workspace.</p>
+    <form class="registration-form" data-static-form>
+      <label>
+        Select your role
+        <select name="role">
+          <option value="collector">Collector</option>
+          <option value="driver">Taxi Driver</option>
+          <option value="spaza">Spaza Owner</option>
+          <option value="depot">Taxi Rank Depot / Depot Shop</option>
+          <option value="subscriber">Monthly Subscriber</option>
+          <option value="owner">Taxi Owner</option>
+        </select>
+      </label>
+      <label>
+        Full name
+        <input type="text" name="name" placeholder="e.g. Lerato Mokoena" />
+      </label>
+      <label>
+        Email address
+        <input type="email" name="email" placeholder="you@example.com" />
+      </label>
+      <label>
+        Mobile number
+        <input type="tel" name="phone" placeholder="+27" />
+      </label>
+      <label>
+        Operating routes or service areas
+        <textarea name="routes" placeholder="List the routes, ranks, or suburbs you serve"></textarea>
+      </label>
+      <button type="submit" class="cta">Submit registration</button>
+    </form>
+  </main>
   <div id="map"></div>
 </body>
 </html>

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
+<body class="page page-route-finder">
   <div id="topbar">
     <a href="/">iTaxi-Finder</a>
     <a href="/">Route Finder</a>
@@ -17,7 +17,19 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
-  <div id="search"><input placeholder="Search routes" /></div>
+  <form id="search" class="overlay-panel" role="search" data-static-form>
+    <input type="search" name="q" placeholder="Search areas, stops or saved routes" aria-label="Search routes" />
+    <button type="submit" class="cta secondary">Find Route</button>
+  </form>
+  <main class="content-panel overlay-panel" aria-labelledby="finder-heading">
+    <h1 id="finder-heading">Discover South Africa's live minibus-taxi network</h1>
+    <p>Pan around the interactive map to reveal frequently used taxi corridors. Use the search above to spotlight specific townships,
+      stops, or saved routes, then tap a highlighted segment to see fares, hand signals, and peak-time insights.</p>
+    <div class="cta-row">
+      <a class="cta" href="#map">View nearby routes</a>
+      <a class="cta secondary" href="/route-adder.html">Add a new route</a>
+    </div>
+  </main>
   <div id="map"></div>
 </body>
 </html>

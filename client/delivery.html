@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
+<body class="page map-background page-delivery">
   <div id="topbar">
     <a href="/">iTaxi-Finder</a>
     <a href="/">Route Finder</a>
@@ -17,9 +17,43 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
-  <div style="position:fixed;top:56px;left:0;right:0;background:#ffc;padding:10px;z-index:1000;">
-    The taxi industry already has the infrastructure and building blocks to facilitate a parcel delivery service...
+  <div class="delivery-banner" role="note">
+    <span>“The taxi industry already has the infrastructure and building blocks to facilitate a parcel delivery service, all that
+      remains is a central platform to manage, track and coordinate all order requests and the handovers they require along the
+      way.”</span>
+    <button type="button" data-dismiss-banner aria-label="Dismiss Delivery Extenda banner">Hide</button>
   </div>
+  <main class="content-panel" aria-labelledby="delivery-heading">
+    <h1 id="delivery-heading">Delivery Extenda</h1>
+    <p>Connect township fleets, depots, and trusted partners to deliver parcels efficiently along existing minibus-taxi corridors.
+      Delivery Extenda wraps bookings, routing, and proof-of-handover into one coordinated workflow.</p>
+
+    <section aria-labelledby="delivery-how">
+      <h2 id="delivery-how">How it works</h2>
+      <ol>
+        <li><strong>Create the order:</strong> Customers submit pickup and drop-off points plus an optional retail partner. Orders
+          drop straight onto the live map.</li>
+        <li><strong>Plan the trip chain:</strong> Our routing engine pairs depot hops with taxi routes, scoring combinations via the
+          Google Routes API to minimise total travel distance and time.</li>
+        <li><strong>Move the parcel:</strong> Each handover scans a QR code to confirm custody as parcels travel from collector to
+          rank depots, then to their final reception points.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="delivery-features">
+      <h2 id="delivery-features">Live tracking &amp; transparency</h2>
+      <ul>
+        <li>Map overlays show active pickup and drop-off pins plus the current leg of every parcel.</li>
+        <li>Status timelines highlight completed and pending handovers to keep customers informed.</li>
+        <li>Depot and operator dashboards surface performance metrics, revenue opportunities, and service-level trends.</li>
+      </ul>
+    </section>
+
+    <div class="cta-row">
+      <a class="cta" href="/registration.html">Start delivery onboarding</a>
+      <a class="cta secondary" href="#" data-static-link>View Basa Gas partner template</a>
+    </div>
+  </main>
   <div id="map"></div>
 </body>
 </html>
