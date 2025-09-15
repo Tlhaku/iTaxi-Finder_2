@@ -1,42 +1,29 @@
-function loadMap(apiKey) {
+async function init() {
+  const config = await fetch('/config').then(r => r.json());
   const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
-  script.async = true;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${config.mapsApiKey}`;
+  script.onload = initMap;
+
   document.head.appendChild(script);
 }
 
 function initMap() {
-  const defaultPos = { lat: -30.5595, lng: 22.9375 }; // South Africa center
   const map = new google.maps.Map(document.getElementById('map'), {
-    zoom: 10,
-    center: defaultPos,
+    center: { lat: -26.2041, lng: 28.0473 },
+    zoom: 12,
   });
-
-  function setPosition(pos) {
-    map.setCenter(pos);
-  }
-
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setPosition({ lat: position.coords.latitude, lng: position.coords.longitude });
-      },
-      () => {
-        fetch('https://ipapi.co/json')
-          .then(r => r.json())
-          .then(data => setPosition({ lat: data.latitude, lng: data.longitude }))
-          .catch(() => setPosition(defaultPos));
-      }
-    );
-  } else {
-    setPosition(defaultPos);
+    navigator.geolocation.getCurrentPosition(pos => {
+      const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      map.setCenter(p);
+    });
   }
 }
-
-fetch('/config')
-  .then(r => r.json())
-  .then(cfg => loadMap(cfg.googleMapsApiKey));
 
 function toggleUI() {
-  document.body.classList.toggle('overlay-hidden');
+  document.getElementById('topbar').classList.toggle('hidden');
+  document.getElementById('search').classList.toggle('hidden');
 }
+
+document.addEventListener('DOMContentLoaded', init);
+

@@ -1,0 +1,9 @@
+[
+  {
+    "routeId": 1,
+    "name": "Sample Route",
+    "fare": {"min": 10, "max": 15, "currency": "ZAR"},
+    "gesture": "Point forward",
+    "stops": [{"name": "Stop A", "lat": -26.2041, "lng": 28.0473}]
+  }
+]

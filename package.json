@@ -1,14 +1,15 @@
 {
   "name": "itaxi-finder",
   "version": "0.1.0",
-  "description": "Minimal MEAN server skeleton for iTaxi-Finder",
+  "description": "iTaxi-Finder platform server and static client",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node server.js & sleep 1 && kill $! && echo 'No tests implemented'"
   },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.0",
-    "express": "^4.19.2"
-  }
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module"
+
 }
