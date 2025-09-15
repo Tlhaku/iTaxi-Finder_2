@@ -1,0 +1,90 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #0f172a;
+}
+
+body {
+  background: transparent;
+}
+
+#map {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+}
+
+#topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  z-index: 1000;
+  font-weight: 600;
+}
+
+#topbar a {
+  text-decoration: none;
+  color: #0f172a;
+  font-size: 0.85rem;
+}
+
+#topbar a:hover,
+#topbar a:focus {
+  color: #2563eb;
+}
+
+#search {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+}
+
+#search input {
+  border: none;
+  outline: none;
+  font-size: 0.95rem;
+  min-width: 320px;
+}
+
+.overlay-card,
+.overlay-panel {
+  position: relative;
+  z-index: 400;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+.gm-style .gm-style-mtc,
+.gm-style .gm-fullscreen-control {
+  top: 60px !important;
+}
+
+.gm-style .gm-style-mtc {
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.gm-style .gm-fullscreen-control {
+  border-radius: 8px;
+}
