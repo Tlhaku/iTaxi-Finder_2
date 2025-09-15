@@ -53,3 +53,4 @@ client/  Static front-end with Google Maps
 ## Notes
 
 This is an early scaffold based on the full SRS. It includes placeholders for routes, delivery, community, registration, and about pages, and a Hide UI toggle.
+
