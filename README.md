@@ -1,41 +1,56 @@
-# iTaxi-Finder Platform Skeleton
+# iTaxi-Finder
 
-This repository contains a minimal Node/Express server that follows the
-[iTaxi-Finder SRS](./SRS.md) and exposes placeholder endpoints for the
-future MEAN stack implementation.
+A prototype MEAN-style platform for mapping and editing South African minibus-taxi routes.
 
-## Getting Started
+## Prerequisites
 
-### Requirements
-- Node.js 20+
-- npm
+- [Node.js](https://nodejs.org/) 18+
+- [npm](https://www.npmjs.com/)
+- (Optional) [MongoDB](https://www.mongodb.com/) if you plan to persist data
 
-### Installation
-1. Clone the repository.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Create a `.env` file in the project root with your Google Maps key:
-   ```bash
-   GOOGLE_MAPS_API_KEY=AIzaSyCYxFkL9vcvbaFz-Ut1Lm2Vge5byodujfk
-   ```
-4. Start the development server:
-   ```bash
-   npm start
-   ```
-5. The server runs on `http://localhost:3000`.
+## Setup
 
-### Available Endpoints
-- `GET /config` – exposes `GOOGLE_MAPS_API_KEY`.
-- `GET /api/routes` – list routes (placeholder).
-- `POST /api/routes` – create route (placeholder).
-- `PUT /api/routes/:id` – update route (placeholder).
-- `POST /api/roads/snap` – proxy to Roads API (placeholder).
-- `POST /api/tripchain/suggest` – suggests trip chain (placeholder).
-- `POST /api/orders` – create order (placeholder).
-- `GET /api/orders/:id` – retrieve order (placeholder).
-- `POST /api/orders/:id/scan` – register QR scan (placeholder).
+### 1. Server
 
-These routes align with the SRS and can be expanded into a full MEAN
-application.
+```bash
+cd server
+cp .env.example .env # set GOOGLE_MAPS_API_KEY and MONGODB_URI
+npm install
+npm start
+```
+The server exposes:
+- `GET /config` – returns the Google Maps API key for the client
+- `GET /api/routes` – sample routes data
+
+### 2. Client
+
+The client is a simple static front‑end that fetches the Maps key and loads Google Maps.
+
+```bash
+cd client
+npm install # (no dependencies yet, but keeps npm happy)
+npm test    # runs a placeholder test
+```
+Serve the files using any static web server, e.g.:
+
+```bash
+npx http-server .
+```
+Then open `http://localhost:8080/index.html` in your browser.
+
+## Environment variables
+
+- `GOOGLE_MAPS_API_KEY` – Google Maps key used by the client
+- `MONGODB_URI` – connection string for MongoDB (not used in prototype)
+
+## Project structure
+
+```
+server/  Express API server
+client/  Static front-end with Google Maps
+```
+
+## Notes
+
+This is an early scaffold based on the full SRS. It includes placeholders for routes, delivery, community, registration, and about pages, and a Hide UI toggle.
+
