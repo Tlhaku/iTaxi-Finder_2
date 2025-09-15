@@ -28,3 +28,4 @@ This script starts the server briefly to ensure it boots.
 
 ## Notes
 The current build uses only Node.js built-in modules because package installation was not possible in the execution environment. The frontend is a static proof-of-concept and does not implement full MEAN stack features.
+

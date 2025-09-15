@@ -3,6 +3,7 @@ async function init() {
   const script = document.createElement('script');
   script.src = `https://maps.googleapis.com/maps/api/js?key=${config.mapsApiKey}`;
   script.onload = initMap;
+
   document.head.appendChild(script);
 }
 
@@ -25,3 +26,4 @@ function toggleUI() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
