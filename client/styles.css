@@ -117,15 +117,17 @@ body.page {
 
 #editor-tools {
   position: fixed;
-  top: 88px;
-  left: 28px;
+  top: 96px;
+  right: 28px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px;
-  width: 240px;
+  padding: 20px 22px;
+  width: 260px;
   max-width: calc(100vw - 56px);
-  background: rgba(255, 255, 255, 0.88);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.92);
   border-radius: 18px;
   box-shadow: 0 28px 70px rgba(15, 23, 42, 0.22);
   z-index: 950;
@@ -162,6 +164,21 @@ body.page {
 #editor-tools button.secondary:focus {
   background: rgba(37, 99, 235, 0.14);
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
+}
+
+#editor-tools button:disabled {
+  background: rgba(148, 163, 184, 0.35);
+  color: rgba(15, 23, 42, 0.55);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+#editor-tools .editor-status {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: rgba(15, 23, 42, 0.76);
 }
 
 .community-grid {
@@ -276,9 +293,8 @@ body.page {
 }
 
 body.map-background #map {
-  pointer-events: none;
-  filter: saturate(0.6) contrast(1.05) brightness(1.05);
-  opacity: 0.65;
+  filter: saturate(0.65) contrast(1.05) brightness(1.05);
+  opacity: 0.72;
 }
 
 body.map-background #map::after {
@@ -287,13 +303,6 @@ body.map-background #map::after {
   inset: 0;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.28), rgba(15, 23, 42, 0.55));
   pointer-events: none;
-}
-
-body.map-background .gm-style,
-body.map-background .gm-control-active,
-body.map-background .gm-fullscreen-control,
-body.map-background .gm-style-mtc {
-  pointer-events: none !important;
 }
 
 .map-muted {
@@ -356,6 +365,7 @@ body.page-delivery .content-panel {
   #editor-tools {
     top: auto;
     bottom: 24px;
+    right: auto;
     left: 50%;
     transform: translateX(-50%);
     flex-direction: row;

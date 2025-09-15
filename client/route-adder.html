@@ -18,14 +18,17 @@
     <a href="/about.html">About</a>
   </div>
   <aside id="editor-tools" class="overlay-panel" aria-label="Route editing tools">
-    <button type="button">Draw</button>
-    <button type="button">Snap to Road</button>
-    <button type="button">Edit segment</button>
-    <button type="button" class="secondary">Undo</button>
-    <button type="button" class="secondary">Redo</button>
-    <button type="button">Save</button>
-    <button type="button" class="secondary">Delete</button>
-    <button type="button" class="secondary">Exit editing</button>
+    <p id="editor-status" class="editor-status" role="status" aria-live="polite">
+      Select "Draw" to start plotting a new taxi route.
+    </p>
+    <button type="button" data-editor-action="draw">Draw</button>
+    <button type="button" data-editor-action="snap">Snap to Road</button>
+    <button type="button" data-editor-action="edit">Edit segment</button>
+    <button type="button" data-editor-action="undo" class="secondary">Undo</button>
+    <button type="button" data-editor-action="redo" class="secondary">Redo</button>
+    <button type="button" data-editor-action="save">Save</button>
+    <button type="button" data-editor-action="delete" class="secondary">Delete</button>
+    <button type="button" data-editor-action="exit" class="secondary">Exit editing</button>
   </aside>
   <div id="map"></div>
 </body>
