@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body class="page page-route-adder">
+<body class="page map-background page-route-adder">
   <div id="topbar">
     <a href="/">iTaxi-Finder</a>
     <a href="/route-finder.html">Route Finder</a>
@@ -17,12 +17,22 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
-  <section id="editor-guide" class="overlay-panel editor-guide" aria-labelledby="editor-guide-title">
+  <section
+    id="editor-guide"
+    class="editor-guide"
+    aria-labelledby="editor-guide-title"
+    role="note"
+  >
     <div class="editor-guide__content" id="editor-guide-content">
-      <h1 id="editor-guide-title">Start drawing a route</h1>
+      <h1 id="editor-guide-title">Route editor tips</h1>
       <p>
-        Choose <strong>Draw</strong>, click along the corridor your taxis follow, then press <strong>Snap to Road</strong>
-        for a clean, map-ready path. Save once the green snapped line looks right.
+        Select <strong>Draw</strong>, click point <strong>A</strong> and point <strong>B</strong>, and the first segment will
+        appear between them. Continue clicking along the exact taxi corridor, then tap <strong>Snap to Road</strong> for a
+        finely aligned path before saving.
+      </p>
+      <p class="editor-guide__hint">
+        Use <strong>Edit segment</strong> to drag bends into place, <strong>Undo</strong>/<strong>Redo</strong> to revisit
+        steps, and <strong>Exit editing</strong> when you want to clear the canvas and start again.
       </p>
     </div>
     <button
@@ -45,7 +55,8 @@
       <button type="button" class="link-button" data-saved-routes-refresh>Refresh</button>
     </div>
     <p class="route-adder-saved__intro">
-      Clean up old corridors from the system. Delete a route below when it no longer reflects real-world operations.
+      Clean up old corridors from the system. Pick a saved route in the tools dropdown when it no longer reflects
+      real-world operations.
     </p>
     <ul
       id="saved-routes-list"
@@ -72,8 +83,14 @@
     <button type="button" data-editor-action="undo" class="secondary">Undo</button>
     <button type="button" data-editor-action="redo" class="secondary">Redo</button>
     <button type="button" data-editor-action="save">Save</button>
-    <button type="button" data-editor-action="delete" class="secondary">Delete</button>
     <button type="button" data-editor-action="exit" class="secondary">Exit editing</button>
+    <div class="editor-tools__delete">
+      <label for="editor-delete-select">Remove a saved route</label>
+      <select id="editor-delete-select" data-route-delete-select>
+        <option value="">No saved routes available</option>
+      </select>
+      <p class="editor-tools__delete-hint">Selecting a route removes it from the shared directory immediately.</p>
+    </div>
   </aside>
   <div id="map"></div>
 </body>
