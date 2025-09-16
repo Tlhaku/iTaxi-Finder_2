@@ -297,6 +297,27 @@ function handleUpdateRoute(req, res, id) {
     });
 }
 
+function handleDeleteRoute(req, res, id) {
+  const index = routes.findIndex(route => String(route.routeId) === id);
+  if (index === -1) {
+    sendJson(res, { message: 'Not found' }, 404);
+    return;
+  }
+
+  const [removed] = routes.splice(index, 1);
+  persistRoutes()
+    .then(() => {
+      sendJson(res, { routeId: removed.routeId, message: 'Route deleted' });
+    })
+    .catch(error => {
+      console.error('Failed to persist route deletion', error);
+      if (removed) {
+        routes.splice(index, 0, removed);
+      }
+      sendJson(res, { message: 'Failed to delete route' }, 500);
+    });
+}
+
 async function handleSnapRequest(req, res) {
   let payload;
   try {
@@ -356,6 +377,12 @@ const server = http.createServer((req, res) => {
   if (pathname.startsWith('/api/routes/') && req.method === 'PUT') {
     const id = pathname.split('/').pop();
     handleUpdateRoute(req, res, id);
+    return;
+  }
+
+  if (pathname.startsWith('/api/routes/') && req.method === 'DELETE') {
+    const id = pathname.split('/').pop();
+    handleDeleteRoute(req, res, id);
     return;
   }
 
