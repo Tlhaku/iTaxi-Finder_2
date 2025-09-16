@@ -1,6 +1,7 @@
 let mapInstance;
 let routeEditorState;
 let resizeListenerAttached = false;
+let routeFinderState;
 
 async function init() {
   try {
@@ -107,6 +108,10 @@ function initMap() {
 
   if (document.body.classList.contains('page-route-adder')) {
     setupRouteAdder(mapInstance);
+  }
+
+  if (document.body.classList.contains('page-route-finder')) {
+    setupRouteFinder(mapInstance);
   }
 }
 
@@ -536,6 +541,8 @@ async function saveCurrentRoute(state) {
     setEditorStatus(state, 'Route save cancelled. Provide a name to save the route.');
     return;
   }
+  const provinceInput = window.prompt('Province', '');
+  const cityInput = window.prompt('City or Town', '');
   const minFareInput = window.prompt('Minimum fare (ZAR)', '10');
   const maxFareInput = window.prompt('Maximum fare (ZAR)', minFareInput || '12');
   const gesture = window.prompt('Hand signal / gesture', '') || '';
@@ -546,6 +553,8 @@ async function saveCurrentRoute(state) {
   const payload = {
     name,
     gesture,
+    province: typeof provinceInput === 'string' ? provinceInput.trim() : '',
+    city: typeof cityInput === 'string' ? cityInput.trim() : '',
     fare: {
       min: Number.isFinite(fareMin) ? fareMin : 0,
       max: Number.isFinite(fareMax) ? fareMax : Number.isFinite(fareMin) ? fareMin : 0,
@@ -570,6 +579,12 @@ async function saveCurrentRoute(state) {
     const saved = await response.json();
     setEditorStatus(state, `Route "${saved.name || name}" saved successfully.`);
     state.mode = 'idle';
+    state.path = [];
+    state.snappedPath = [];
+    initialiseRouteHistory(state);
+    updateDraftPolyline(state);
+    updateSnappedPolyline(state);
+    updateEditorControls(state);
   } catch (error) {
     console.error('Unable to save route', error);
     setEditorStatus(state, 'Unable to save the route right now. Please try again.');
@@ -590,6 +605,601 @@ function buildStopsFromPath(path) {
     stops.push({ name: 'End', lat: last.lat, lng: last.lng });
   }
   return stops;
+}
+
+function setupRouteFinder(map) {
+  if (!map) return;
+
+  const dropdown = document.getElementById('route-select');
+  const detailsElement = document.getElementById('route-details');
+  const searchForm = document.getElementById('search');
+
+  if (!routeFinderState) {
+    routeFinderState = {
+      map,
+      dropdown,
+      detailsElement,
+      searchForm,
+      infoWindow: new google.maps.InfoWindow({ maxWidth: 320 }),
+      routes: [],
+      routeById: new Map(),
+      overlays: [],
+      polylineById: new Map(),
+      collator: new Intl.Collator('en', { sensitivity: 'base' }),
+      selectedRouteId: '',
+    };
+  } else {
+    routeFinderState.map = map;
+    routeFinderState.dropdown = dropdown;
+    routeFinderState.detailsElement = detailsElement;
+    routeFinderState.searchForm = searchForm;
+    if (!routeFinderState.infoWindow) {
+      routeFinderState.infoWindow = new google.maps.InfoWindow({ maxWidth: 320 });
+    }
+    if (!routeFinderState.collator) {
+      routeFinderState.collator = new Intl.Collator('en', { sensitivity: 'base' });
+    }
+  }
+
+  attachRouteFinderEventListeners();
+  renderRouteDetails(null);
+  loadRoutesForFinder();
+  repositionMapControls(map.getDiv());
+}
+
+function attachRouteFinderEventListeners() {
+  if (!routeFinderState) return;
+  const { dropdown, searchForm } = routeFinderState;
+
+  if (dropdown && !dropdown.dataset.routeFinderBound) {
+    dropdown.addEventListener('change', event => {
+      focusRouteById(event.target.value || '', { updateDropdown: false });
+    });
+    dropdown.dataset.routeFinderBound = 'true';
+  }
+
+  if (searchForm && !searchForm.dataset.routeFinderBound) {
+    searchForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const input = searchForm.querySelector('input[name="q"], input[type="search"]');
+      const query = input ? input.value.trim() : '';
+      handleRouteSearch(query);
+    });
+    searchForm.dataset.routeFinderBound = 'true';
+  }
+}
+
+async function loadRoutesForFinder() {
+  if (!routeFinderState) return;
+
+  try {
+    const response = await fetch('/api/routes');
+    if (!response.ok) {
+      throw new Error(`Routes request failed with status ${response.status}`);
+    }
+    const payload = await response.json();
+    const routes = Array.isArray(payload) ? payload.map(normalizeRouteRecord).filter(Boolean) : [];
+
+    routeFinderState.routes = routes;
+    if (!routeFinderState.routeById) {
+      routeFinderState.routeById = new Map();
+    } else {
+      routeFinderState.routeById.clear();
+    }
+    routes.forEach(route => {
+      routeFinderState.routeById.set(route.routeId, route);
+    });
+
+    updateRouteDropdown();
+    drawRoutesOnMap();
+
+    if (routeFinderState.selectedRouteId && routeFinderState.routeById.has(routeFinderState.selectedRouteId)) {
+      focusRouteById(routeFinderState.selectedRouteId, { fit: false, updateDropdown: true });
+    } else {
+      routeFinderState.selectedRouteId = '';
+      if (routeFinderState.dropdown) {
+        routeFinderState.dropdown.value = '';
+      }
+      if (routes.length === 0) {
+        renderRouteDetails(null, {
+          message: 'No routes have been saved yet. Use the Route Adder to capture your first corridor.',
+        });
+      } else {
+        renderRouteDetails(null);
+      }
+      if (routeFinderState.infoWindow) {
+        routeFinderState.infoWindow.close();
+      }
+      highlightRoutes('');
+    }
+  } catch (error) {
+    console.error('Failed to load routes', error);
+    routeFinderState.routes = [];
+    if (routeFinderState.routeById) {
+      routeFinderState.routeById.clear();
+    }
+    updateRouteDropdown();
+    clearRouteOverlays();
+    if (routeFinderState.infoWindow) {
+      routeFinderState.infoWindow.close();
+    }
+    renderRouteDetails(null, {
+      message: 'Unable to load saved routes right now. Please refresh the page to try again.',
+    });
+  }
+}
+
+function drawRoutesOnMap() {
+  if (!routeFinderState || !routeFinderState.map) return;
+
+  clearRouteOverlays();
+  routeFinderState.polylineById = new Map();
+
+  routeFinderState.routes.forEach(route => {
+    const path = getRoutePath(route);
+    if (!Array.isArray(path) || path.length < 2) return;
+
+    const strokeColor = getRouteColor(route.frequencyPerHour);
+    const polyline = new google.maps.Polyline({
+      map: routeFinderState.map,
+      path: path.map(point => ({ lat: point.lat, lng: point.lng })),
+      strokeColor,
+      strokeOpacity: 0.6,
+      strokeWeight: 4,
+      zIndex: 500,
+    });
+
+    const entry = {
+      routeId: route.routeId,
+      polyline,
+      strokeColor,
+      listeners: [],
+    };
+
+    entry.listeners.push(
+      polyline.addListener('click', event => {
+        focusRouteById(route.routeId, { eventPosition: event.latLng, updateDropdown: true });
+      }),
+      polyline.addListener('mouseover', () => {
+        applyRouteStyle(entry, {
+          isHover: true,
+          isSelected: routeFinderState.selectedRouteId === route.routeId,
+        });
+      }),
+      polyline.addListener('mouseout', () => {
+        applyRouteStyle(entry, { isSelected: routeFinderState.selectedRouteId === route.routeId });
+      }),
+    );
+
+    routeFinderState.overlays.push(entry);
+    routeFinderState.polylineById.set(route.routeId, entry);
+    applyRouteStyle(entry, { isSelected: routeFinderState.selectedRouteId === route.routeId });
+  });
+
+  repositionMapControls(routeFinderState.map.getDiv());
+}
+
+function clearRouteOverlays() {
+  if (!routeFinderState) return;
+  if (Array.isArray(routeFinderState.overlays)) {
+    routeFinderState.overlays.forEach(entry => {
+      if (entry.listeners) {
+        entry.listeners.forEach(listener => listener.remove());
+      }
+      if (entry.polyline) {
+        entry.polyline.setMap(null);
+      }
+    });
+  }
+  routeFinderState.overlays = [];
+  if (routeFinderState.polylineById) {
+    routeFinderState.polylineById.clear();
+  }
+}
+
+function applyRouteStyle(entry, { isSelected = false, isHover = false } = {}) {
+  if (!entry || !entry.polyline) return;
+  const strokeOpacity = isSelected ? 1 : isHover ? 0.85 : 0.55;
+  const strokeWeight = isSelected ? 6 : isHover ? 5 : 4;
+  const zIndex = isSelected ? 1100 : isHover ? 900 : 500;
+  entry.polyline.setOptions({
+    strokeOpacity,
+    strokeWeight,
+    zIndex,
+    strokeColor: entry.strokeColor,
+  });
+}
+
+function highlightRoutes(routeId) {
+  if (!routeFinderState) return;
+  const selectedId = routeId ? String(routeId) : '';
+  routeFinderState.overlays.forEach(entry => {
+    applyRouteStyle(entry, { isSelected: entry.routeId === selectedId });
+  });
+}
+
+function focusRouteById(routeId, options = {}) {
+  if (!routeFinderState) return;
+  const id = routeId ? String(routeId) : '';
+
+  if (!id) {
+    routeFinderState.selectedRouteId = '';
+    highlightRoutes('');
+    if (options.updateDropdown !== false && routeFinderState.dropdown) {
+      routeFinderState.dropdown.value = '';
+    }
+    renderRouteDetails(null);
+    if (routeFinderState.infoWindow) {
+      routeFinderState.infoWindow.close();
+    }
+    return;
+  }
+
+  const route = routeFinderState.routeById ? routeFinderState.routeById.get(id) : null;
+  if (!route) {
+    renderRouteDetails(null, { message: 'The selected route could not be found.' });
+    return;
+  }
+
+  routeFinderState.selectedRouteId = id;
+  highlightRoutes(id);
+
+  if (options.updateDropdown !== false && routeFinderState.dropdown && routeFinderState.dropdown.value !== id) {
+    routeFinderState.dropdown.value = id;
+  }
+
+  renderRouteDetails(route);
+
+  if (options.fit !== false) {
+    fitMapToRoute(route);
+  }
+
+  if (routeFinderState.infoWindow) {
+    const anchor = options.eventPosition || getRouteMidpoint(route);
+    if (anchor) {
+      routeFinderState.infoWindow.setContent(buildRouteInfoWindow(route));
+      routeFinderState.infoWindow.setPosition(anchor);
+      routeFinderState.infoWindow.open({ map: routeFinderState.map });
+    } else {
+      routeFinderState.infoWindow.close();
+    }
+  }
+}
+
+function fitMapToRoute(route) {
+  if (!routeFinderState || !routeFinderState.map) return;
+  const path = getRoutePath(route);
+  if (!Array.isArray(path) || path.length === 0) return;
+
+  const bounds = new google.maps.LatLngBounds();
+  path.forEach(point => bounds.extend(point));
+  try {
+    routeFinderState.map.fitBounds(bounds, getRouteFitPadding());
+  } catch (error) {
+    console.warn('Unable to fit map to route bounds', error);
+  }
+}
+
+function getRouteFitPadding() {
+  const topPadding = getControlOffset() + 80;
+  return { top: topPadding, bottom: 64, left: 80, right: 80 };
+}
+
+function getRoutePath(route) {
+  if (!route) return [];
+  if (Array.isArray(route.snappedPath) && route.snappedPath.length > 1) {
+    return route.snappedPath;
+  }
+  if (Array.isArray(route.path)) {
+    return route.path;
+  }
+  return [];
+}
+
+function getRouteColor(frequencyPerHour) {
+  const value = Number(frequencyPerHour);
+  if (!Number.isFinite(value)) {
+    return '#2563eb';
+  }
+  if (value >= 25) return '#b91c1c';
+  if (value >= 18) return '#ea580c';
+  if (value >= 12) return '#f59e0b';
+  if (value >= 6) return '#0ea5e9';
+  return '#2563eb';
+}
+
+function normalizeRouteRecord(rawRoute) {
+  if (!rawRoute || rawRoute.routeId === undefined || rawRoute.routeId === null) return null;
+  const routeId = String(rawRoute.routeId);
+  const name = typeof rawRoute.name === 'string' && rawRoute.name.trim() ? rawRoute.name.trim() : `Route ${routeId}`;
+  const province = typeof rawRoute.province === 'string' && rawRoute.province.trim()
+    ? rawRoute.province.trim()
+    : 'Unspecified province';
+  const city = typeof rawRoute.city === 'string' && rawRoute.city.trim() ? rawRoute.city.trim() : 'Unspecified city';
+  const path = cloneCoordinateList(Array.isArray(rawRoute.path) ? rawRoute.path : []);
+  const snappedPath = cloneCoordinateList(Array.isArray(rawRoute.snappedPath) ? rawRoute.snappedPath : []);
+  const stops = Array.isArray(rawRoute.stops)
+    ? rawRoute.stops
+        .map(stop => ({
+          name: typeof stop.name === 'string' && stop.name.trim() ? stop.name.trim() : 'Stop',
+          lat: Number(stop.lat),
+          lng: Number(stop.lng),
+        }))
+        .filter(stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng))
+    : [];
+  const fare = rawRoute.fare
+    ? {
+        min: Number(rawRoute.fare.min),
+        max: Number(rawRoute.fare.max),
+        currency:
+          typeof rawRoute.fare.currency === 'string' && rawRoute.fare.currency.trim()
+            ? rawRoute.fare.currency.trim()
+            : 'ZAR',
+      }
+    : null;
+  const frequency = Number(rawRoute.frequencyPerHour);
+
+  return {
+    ...rawRoute,
+    routeId,
+    name,
+    province,
+    city,
+    path,
+    snappedPath,
+    stops,
+    fare,
+    frequencyPerHour: Number.isFinite(frequency) ? frequency : null,
+    nameLower: name.toLowerCase(),
+    provinceLower: province.toLowerCase(),
+    cityLower: city.toLowerCase(),
+  };
+}
+
+function updateRouteDropdown() {
+  if (!routeFinderState || !routeFinderState.dropdown) return;
+  const select = routeFinderState.dropdown;
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = routeFinderState.routes.length ? 'Select a saved route' : 'No routes saved yet';
+  placeholder.selected = true;
+  select.appendChild(placeholder);
+
+  if (routeFinderState.routes.length === 0) {
+    select.disabled = true;
+    return;
+  }
+
+  select.disabled = false;
+  const groups = groupRoutesByProvinceCity(routeFinderState.routes, routeFinderState.collator);
+  groups.forEach(group => {
+    const optGroup = document.createElement('optgroup');
+    optGroup.label = group.province;
+    group.cities.forEach(cityGroup => {
+      cityGroup.routes.forEach(route => {
+        const option = document.createElement('option');
+        option.value = route.routeId;
+        option.textContent = `${cityGroup.name} — ${route.name}`;
+        option.dataset.province = route.province;
+        option.dataset.city = route.city;
+        optGroup.appendChild(option);
+      });
+    });
+    select.appendChild(optGroup);
+  });
+
+  if (previousValue && routeFinderState.routeById && routeFinderState.routeById.has(previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = '';
+  }
+}
+
+function groupRoutesByProvinceCity(routes, collator) {
+  const provinceMap = new Map();
+  routes.forEach(route => {
+    const province = route.province || 'Unspecified province';
+    const city = route.city || 'Unspecified city';
+    if (!provinceMap.has(province)) {
+      provinceMap.set(province, new Map());
+    }
+    const cityMap = provinceMap.get(province);
+    if (!cityMap.has(city)) {
+      cityMap.set(city, []);
+    }
+    cityMap.get(city).push(route);
+  });
+
+  const comparer = collator || new Intl.Collator('en', { sensitivity: 'base' });
+  return Array.from(provinceMap.entries())
+    .sort((a, b) => comparer.compare(a[0], b[0]))
+    .map(([province, cityMap]) => ({
+      province,
+      cities: Array.from(cityMap.entries())
+        .sort((a, b) => comparer.compare(a[0], b[0]))
+        .map(([city, cityRoutes]) => ({
+          name: city,
+          routes: cityRoutes.slice().sort((a, b) => comparer.compare(a.name, b.name)),
+        })),
+    }));
+}
+
+function renderRouteDetails(route, options = {}) {
+  if (!routeFinderState || !routeFinderState.detailsElement) return;
+  const container = routeFinderState.detailsElement;
+
+  if (options.message) {
+    container.innerHTML = `<p class="route-details__empty">${escapeHtml(options.message)}</p>`;
+    return;
+  }
+
+  if (!route) {
+    container.innerHTML = '<p class="route-details__empty">Select a saved route to see its details.</p>';
+    return;
+  }
+
+  const fareText = escapeHtml(formatFare(route.fare));
+  const serviceWindow = escapeHtml(formatServiceWindow(route.firstLoad, route.lastLoad));
+  const frequencyMarkup = Number.isFinite(route.frequencyPerHour)
+    ? `<span class="route-frequency-chip">${escapeHtml(`${route.frequencyPerHour} trips/hour`)}</span>`
+    : escapeHtml('Frequency data unavailable');
+  const gestureText = route.gesture ? escapeHtml(route.gesture) : 'Not specified';
+  const stopsMarkup = buildStopsMarkup(route.stops);
+  const variationsCount = Array.isArray(route.variations) ? route.variations.length : 0;
+
+  container.innerHTML = `
+    <h2>${escapeHtml(route.name)}</h2>
+    <ul class="route-details__meta">
+      <li><strong>Province:</strong> ${escapeHtml(route.province || 'Unspecified')}</li>
+      <li><strong>City:</strong> ${escapeHtml(route.city || 'Unspecified')}</li>
+      <li><strong>Fare:</strong> ${fareText}</li>
+      <li><strong>Gesture:</strong> ${gestureText}</li>
+      <li><strong>Frequency:</strong> ${frequencyMarkup}</li>
+      <li><strong>Service window:</strong> ${serviceWindow}</li>
+      <li><strong>Variations:</strong> ${variationsCount}</li>
+    </ul>
+    ${stopsMarkup}
+  `;
+}
+
+function buildStopsMarkup(stops) {
+  if (!Array.isArray(stops) || stops.length === 0) {
+    return '<p class="route-details__empty">No stops recorded yet.</p>';
+  }
+
+  const items = stops.map(stop => {
+    const name = escapeHtml(stop.name || 'Stop');
+    const lat = escapeHtml(formatCoordinate(stop.lat));
+    const lng = escapeHtml(formatCoordinate(stop.lng));
+    return `<li><strong>${name}</strong> — ${lat}, ${lng}</li>`;
+  });
+
+  return `
+    <div>
+      <strong>Stops</strong>
+      <ul class="route-details__stops">
+        ${items.join('')}
+      </ul>
+    </div>
+  `;
+}
+
+function buildRouteInfoWindow(route) {
+  const fare = escapeHtml(formatFare(route.fare));
+  const frequency = escapeHtml(
+    Number.isFinite(route.frequencyPerHour) ? `${route.frequencyPerHour} trips/hour` : 'Frequency data unavailable',
+  );
+  const city = escapeHtml(route.city || 'Unspecified city');
+  const province = escapeHtml(route.province || 'Unspecified province');
+  return `
+    <div class="route-info-window">
+      <strong>${escapeHtml(route.name)}</strong><br />
+      <span>${city}, ${province}</span><br />
+      <span>${fare}</span><br />
+      <span>${frequency}</span>
+    </div>
+  `;
+}
+
+function formatFare(fare) {
+  if (!fare) return 'Not recorded';
+  const currency = typeof fare.currency === 'string' && fare.currency.trim() ? fare.currency.trim().toUpperCase() : 'ZAR';
+  const min = Number(fare.min);
+  const max = Number(fare.max);
+
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    const minFormatted = formatCurrencyValue(min, currency);
+    const maxFormatted = formatCurrencyValue(max, currency);
+    if (Math.abs(max - min) < 0.01) {
+      return minFormatted;
+    }
+    return `${minFormatted} – ${maxFormatted}`;
+  }
+
+  if (Number.isFinite(min)) return formatCurrencyValue(min, currency);
+  if (Number.isFinite(max)) return formatCurrencyValue(max, currency);
+  return 'Not recorded';
+}
+
+function formatCurrencyValue(amount, currency) {
+  if (!Number.isFinite(amount)) return '';
+  const normalizedCurrency = currency && currency.length === 3 ? currency.toUpperCase() : 'ZAR';
+  try {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: normalizedCurrency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch (error) {
+    const symbol = normalizedCurrency === 'ZAR' ? 'R' : `${normalizedCurrency} `;
+    return `${symbol}${amount.toFixed(2)}`;
+  }
+}
+
+function formatServiceWindow(firstLoad, lastLoad) {
+  const start = typeof firstLoad === 'string' && firstLoad.trim() ? firstLoad.trim() : '';
+  const end = typeof lastLoad === 'string' && lastLoad.trim() ? lastLoad.trim() : '';
+  if (start && end) return `${start} – ${end}`;
+  if (start) return `${start} onward`;
+  if (end) return `Until ${end}`;
+  return 'Not recorded';
+}
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function handleRouteSearch(query) {
+  if (!routeFinderState) return;
+  const trimmed = (query || '').trim();
+  if (!trimmed) {
+    focusRouteById('', { updateDropdown: false });
+    renderRouteDetails(null);
+    return;
+  }
+
+  const lower = trimmed.toLowerCase();
+  const match = routeFinderState.routes.find(route =>
+    route.nameLower.includes(lower) || route.cityLower.includes(lower) || route.provinceLower.includes(lower),
+  );
+
+  if (match) {
+    focusRouteById(match.routeId, { fit: true, updateDropdown: true });
+    if (routeFinderState.dropdown) {
+      routeFinderState.dropdown.value = match.routeId;
+    }
+  } else {
+    renderRouteDetails(null, { message: `No routes found for “${trimmed}”.` });
+    if (routeFinderState.dropdown) {
+      routeFinderState.dropdown.value = '';
+    }
+    if (routeFinderState.infoWindow) {
+      routeFinderState.infoWindow.close();
+    }
+    highlightRoutes('');
+  }
+}
+
+function getRouteMidpoint(route) {
+  const path = getRoutePath(route);
+  if (!Array.isArray(path) || path.length === 0) return null;
+  const index = Math.floor(path.length / 2);
+  const point = path[index];
+  return point ? { lat: point.lat, lng: point.lng } : null;
+}
+
+function formatCoordinate(value) {
+  return Number.isFinite(value) ? Number(value).toFixed(5) : 'n/a';
 }
 
 document.addEventListener('DOMContentLoaded', init);
