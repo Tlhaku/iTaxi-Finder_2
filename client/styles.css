@@ -1,3 +1,9 @@
+:root {
+  --map-control-offset: 72px;
+  --overlay-panel-top: 108px;
+  --overlay-panel-max-height: calc(100vh - 148px);
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -13,6 +19,10 @@ body {
 
 body.page {
   position: relative;
+}
+
+body.map-background {
+  overflow: hidden;
 }
 
 #map {
@@ -113,6 +123,27 @@ body.page {
 .content-panel h1,
 .content-panel h2 {
   margin-top: 0;
+}
+
+body.map-background .content-panel {
+  position: fixed;
+  top: var(--overlay-panel-top);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  width: min(1080px, calc(100% - 64px));
+  max-height: var(--overlay-panel-max-height);
+  overflow-y: auto;
+  padding: 42px 48px;
+}
+
+body.map-background .content-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+body.map-background .content-panel::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.25);
+  border-radius: 999px;
 }
 
 #editor-tools {
@@ -343,13 +374,9 @@ body.map-background #map::after {
   background: rgba(146, 64, 14, 0.18);
 }
 
-body.page-delivery .content-panel {
-  margin-top: 160px;
-}
-
 .gm-style .gm-style-mtc,
 .gm-style .gm-fullscreen-control {
-  top: 60px !important;
+  top: var(--map-control-offset);
 }
 
 .gm-style .gm-style-mtc {
@@ -403,6 +430,11 @@ body.page-delivery .content-panel {
     padding: 32px 24px;
   }
 
+  body.map-background .content-panel {
+    width: calc(100% - 32px);
+    padding: 32px 24px;
+  }
+
   .community-grid a {
     flex: 1 1 calc(50% - 12px);
   }
@@ -422,9 +454,6 @@ body.page-delivery .content-panel {
     padding: 12px 16px;
   }
 
-  body.page-delivery .content-panel {
-    margin-top: 210px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -438,5 +467,9 @@ body.page-delivery .content-panel {
 
   #editor-tools button {
     flex: 1 1 100%;
+  }
+
+  body.map-background .content-panel {
+    padding: 28px 20px;
   }
 }

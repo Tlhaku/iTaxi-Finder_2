@@ -111,19 +111,101 @@ function sanitizeFare(fare = {}) {
   return { min, max: maxCandidate, currency };
 }
 
-function smoothPath(path) {
-  if (path.length <= 2) return path;
-  const smoothed = [path[0]];
-  for (let i = 1; i < path.length - 1; i += 1) {
+const EARTH_RADIUS_METERS = 6371000;
+const MAX_SNAP_POINTS_PER_REQUEST = 100;
+const SNAP_SEGMENT_LENGTH_METERS = 15;
+const SNAP_API_URL = 'https://roads.googleapis.com/v1/snapToRoads';
+
+function toRadians(value) {
+  return (value * Math.PI) / 180;
+}
+
+function coordinatesApproximatelyEqual(a, b, tolerance = 1e-5) {
+  if (!a || !b) return false;
+  return Math.abs(a.lat - b.lat) <= tolerance && Math.abs(a.lng - b.lng) <= tolerance;
+}
+
+function segmentDistanceMeters(a, b) {
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const haversine = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(haversine)));
+}
+
+function densifyPath(path, maxSegmentLengthMeters = SNAP_SEGMENT_LENGTH_METERS) {
+  if (!Array.isArray(path) || path.length < 2) return Array.isArray(path) ? path.slice() : [];
+  const densified = [path[0]];
+  for (let i = 1; i < path.length; i += 1) {
     const prev = path[i - 1];
     const curr = path[i];
-    const next = path[i + 1];
-    const lat = (prev.lat + curr.lat + next.lat) / 3;
-    const lng = (prev.lng + curr.lng + next.lng) / 3;
-    smoothed.push({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    const distance = segmentDistanceMeters(prev, curr);
+    if (!Number.isFinite(distance) || distance === 0) {
+      continue;
+    }
+    const segments = Math.max(1, Math.ceil(distance / maxSegmentLengthMeters));
+    for (let step = 1; step < segments; step += 1) {
+      const ratio = step / segments;
+      const lat = prev.lat + (curr.lat - prev.lat) * ratio;
+      const lng = prev.lng + (curr.lng - prev.lng) * ratio;
+      densified.push({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    }
+    densified.push(curr);
   }
-  smoothed.push(path[path.length - 1]);
-  return smoothed;
+  return densified;
+}
+
+async function requestSnapChunk(points, apiKey) {
+  const searchParams = new URLSearchParams();
+  searchParams.set('key', apiKey);
+  searchParams.set('interpolate', 'true');
+  searchParams.set('path', points.map(point => `${point.lat},${point.lng}`).join('|'));
+  const requestUrl = `${SNAP_API_URL}?${searchParams.toString()}`;
+  const response = await fetch(requestUrl);
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    throw new Error(`Snap to Roads request failed with status ${response.status}: ${details}`);
+  }
+  const payload = await response.json().catch(() => ({}));
+  return Array.isArray(payload.snappedPoints) ? payload.snappedPoints : [];
+}
+
+async function snapPathToRoads(basePath, apiKey) {
+  const densified = densifyPath(basePath);
+  if (densified.length < 2) return [];
+  const snapped = [];
+  const step = MAX_SNAP_POINTS_PER_REQUEST - 1;
+  for (let start = 0; start < densified.length; start += step) {
+    const chunk = densified.slice(start, Math.min(densified.length, start + MAX_SNAP_POINTS_PER_REQUEST));
+    if (chunk.length === 0) continue;
+    const snappedPoints = await requestSnapChunk(chunk, apiKey);
+    snappedPoints.forEach(point => {
+      if (!point || !point.location) return;
+      const lat = Number(point.location.latitude);
+      const lng = Number(point.location.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const coord = { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+      const last = snapped[snapped.length - 1];
+      if (!last || Math.abs(last.lat - coord.lat) > 1e-6 || Math.abs(last.lng - coord.lng) > 1e-6) {
+        snapped.push(coord);
+      }
+    });
+  }
+  if (!snapped.length) {
+    return [];
+  }
+  const firstBase = basePath[0];
+  const lastBase = basePath[basePath.length - 1];
+  if (!coordinatesApproximatelyEqual(snapped[0], firstBase)) {
+    snapped.unshift(firstBase);
+  }
+  if (!coordinatesApproximatelyEqual(snapped[snapped.length - 1], lastBase)) {
+    snapped.push(lastBase);
+  }
+  return snapped;
 }
 
 function persistRoutes() {
@@ -206,19 +288,34 @@ function handleUpdateRoute(req, res, id) {
     });
 }
 
-function handleSnapRequest(req, res) {
-  parseJsonBody(req)
-    .then(payload => {
-      const basePath = sanitizeCoordinateList(payload.path);
-      if (basePath.length < 2) {
-        sendJson(res, { message: 'At least two points are required' }, 400);
-        return;
-      }
-      sendJson(res, { snappedPath: smoothPath(basePath) });
-    })
-    .catch(error => {
-      sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
-    });
+async function handleSnapRequest(req, res) {
+  let payload;
+  try {
+    payload = await parseJsonBody(req);
+  } catch (error) {
+    sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
+    return;
+  }
+
+  const basePath = sanitizeCoordinateList(payload.path);
+  if (basePath.length < 2) {
+    sendJson(res, { message: 'At least two points are required' }, 400);
+    return;
+  }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    sendJson(res, { message: 'Snap to Roads requires a configured API key' }, 500);
+    return;
+  }
+
+  try {
+    const snappedPath = await snapPathToRoads(basePath, apiKey);
+    sendJson(res, { snappedPath });
+  } catch (error) {
+    console.error('Snap to Roads request failed', error);
+    sendJson(res, { message: 'Failed to snap route to nearby roads' }, 502);
+  }
 }
 
 const server = http.createServer((req, res) => {

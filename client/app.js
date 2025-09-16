@@ -1,5 +1,6 @@
 let mapInstance;
 let routeEditorState;
+let resizeListenerAttached = false;
 
 async function init() {
   try {
@@ -21,6 +22,8 @@ async function init() {
         }
       });
     });
+
+    applyLayoutOffsets(getControlOffset());
 
     const response = await fetch('/config');
     if (!response.ok) throw new Error(`Config request failed: ${response.status}`);
@@ -145,9 +148,26 @@ function getControlOffset() {
   return Math.round(offset);
 }
 
+function applyLayoutOffsets(offset) {
+  const root = document.documentElement;
+  const clampedOffset = Number.isFinite(offset) ? Math.max(0, offset) : 0;
+  const overlayTop = clampedOffset + 24;
+  root.style.setProperty('--map-control-offset', `${clampedOffset}px`);
+  root.style.setProperty('--overlay-panel-top', `${overlayTop}px`);
+  const viewportHeight = window.innerHeight || 0;
+  if (viewportHeight > 0) {
+    const maxHeight = Math.max(viewportHeight - overlayTop - 32, 180);
+    root.style.setProperty('--overlay-panel-max-height', `${maxHeight}px`);
+  } else {
+    root.style.setProperty('--overlay-panel-max-height', `calc(100vh - ${overlayTop}px - 32px)`);
+  }
+}
+
 function repositionMapControls(mapElement) {
   if (!mapElement) return;
-  const offsetPx = `${getControlOffset()}px`;
+  const offset = getControlOffset();
+  applyLayoutOffsets(offset);
+  const offsetPx = `${offset}px`;
   const mapTypeControl = mapElement.querySelector('.gm-style-mtc');
   if (mapTypeControl) {
     mapTypeControl.style.top = offsetPx;
@@ -155,7 +175,16 @@ function repositionMapControls(mapElement) {
 
   const fullscreenControl = mapElement.querySelector('.gm-fullscreen-control');
   if (fullscreenControl) {
-    fullscreenControl.style.top = offsetPx;
+    let fullscreenTop = offset;
+    const tools = document.getElementById('editor-tools');
+    if (tools) {
+      const rect = tools.getBoundingClientRect();
+      if (rect && Number.isFinite(rect.bottom)) {
+        fullscreenTop = Math.max(fullscreenTop, Math.round(rect.bottom + 16));
+      }
+    }
+    fullscreenControl.style.top = `${fullscreenTop}px`;
+    fullscreenControl.style.right = '16px';
   }
 }
 
@@ -165,6 +194,10 @@ function styleControls(mapElement, map) {
   google.maps.event.addListenerOnce(map, 'idle', repositionControls);
   google.maps.event.addListener(map, 'maptypeid_changed', repositionControls);
   google.maps.event.addListener(map, 'zoom_changed', repositionControls);
+  if (!resizeListenerAttached) {
+    window.addEventListener('resize', repositionControls);
+    resizeListenerAttached = true;
+  }
   repositionControls();
 }
 
@@ -241,6 +274,7 @@ function setupRouteAdder(map) {
 
   initialiseRouteHistory(routeEditorState);
   updateEditorControls(routeEditorState);
+  repositionMapControls(map.getDiv());
 }
 
 function handleRouteEditorAction(action) {
