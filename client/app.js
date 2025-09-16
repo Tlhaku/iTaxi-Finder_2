@@ -7,6 +7,7 @@ let adminRouteFinderState;
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
   ownerProfile: 'itaxiFinderOwnerProfile',
+  editorGuideCollapsed: 'itaxiFinderEditorGuideCollapsed',
 };
 
 function safeStorageGet(key, fallback = null) {
@@ -205,6 +206,7 @@ async function init() {
     });
 
     applyLayoutOffsets(getControlOffset());
+    setupEditorGuide();
 
     if (document.body.classList.contains('page-registration')) {
       setupRegistration();
@@ -394,6 +396,256 @@ function styleControls(mapElement, map) {
   repositionControls();
 }
 
+function setupEditorGuide() {
+  const guide = document.getElementById('editor-guide');
+  if (!guide || guide.dataset.guideBound === 'true') return;
+
+  const toggle = guide.querySelector('[data-guide-toggle]');
+  const content = document.getElementById('editor-guide-content');
+  if (!toggle || !content) return;
+
+  guide.dataset.guideBound = 'true';
+
+  const applyState = collapsed => {
+    if (collapsed) {
+      guide.classList.add('is-collapsed');
+    } else {
+      guide.classList.remove('is-collapsed');
+    }
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    toggle.textContent = collapsed ? 'Show tips' : 'Hide tips';
+    content.hidden = collapsed;
+  };
+
+  const storedState = Boolean(safeStorageGet(STORAGE_KEYS.editorGuideCollapsed, false));
+  applyState(storedState);
+
+  toggle.addEventListener('click', () => {
+    const nextState = !guide.classList.contains('is-collapsed');
+    applyState(nextState);
+    safeStorageSet(STORAGE_KEYS.editorGuideCollapsed, nextState);
+  });
+}
+
+function setupSavedRoutesManager() {
+  const panel = document.getElementById('saved-routes-panel');
+  if (!panel) return null;
+
+  if (panel.dataset.savedRoutesBound === 'true') {
+    return routeEditorState ? routeEditorState.savedRoutes || null : null;
+  }
+
+  const state = {
+    panel,
+    list: panel.querySelector('[data-saved-routes-list]'),
+    refreshButton: panel.querySelector('[data-saved-routes-refresh]'),
+    feedback: document.getElementById('saved-routes-feedback'),
+    routes: [],
+    isLoading: false,
+    collator: new Intl.Collator('en', { sensitivity: 'base' }),
+  };
+
+  if (state.refreshButton) {
+    state.refreshButton.addEventListener('click', () => {
+      loadSavedRoutesForEditor(state, { message: 'Saved routes refreshed.' });
+    });
+  }
+
+  if (state.list) {
+    state.list.addEventListener('click', handleSavedRoutesListClick);
+  }
+
+  panel.dataset.savedRoutesBound = 'true';
+  loadSavedRoutesForEditor(state, { initial: true });
+  return state;
+}
+
+function setSavedRoutesLoading(state, isLoading) {
+  if (!state) return;
+  state.isLoading = Boolean(isLoading);
+  if (state.list) {
+    state.list.setAttribute('aria-busy', state.isLoading ? 'true' : 'false');
+  }
+  if (state.refreshButton) {
+    state.refreshButton.disabled = state.isLoading;
+  }
+  if (state.panel) {
+    if (state.isLoading) {
+      state.panel.classList.add('is-loading');
+    } else {
+      state.panel.classList.remove('is-loading');
+    }
+  }
+}
+
+async function loadSavedRoutesForEditor(state, options = {}) {
+  if (!state) return;
+  const { silent = false, initial = false, force = false, message = '' } = options;
+  if (state.isLoading && !force) return;
+
+  setSavedRoutesLoading(state, true);
+
+  try {
+    const response = await fetch('/api/routes');
+    if (!response.ok) {
+      throw new Error(`Routes request failed with status ${response.status}`);
+    }
+    const payload = await response.json();
+    const routes = Array.isArray(payload) ? payload.map(normalizeRouteRecord).filter(Boolean) : [];
+    state.routes = routes;
+    renderSavedRoutesList(state);
+
+    if (initial) {
+      if (!silent) {
+        if (routes.length === 0) {
+          showSavedRoutesFeedback(
+            state,
+            'No routes saved yet. Draw a corridor and choose Save to add it to the list.',
+          );
+        } else {
+          showSavedRoutesFeedback(state, 'Select Delete next to a saved route to remove it.');
+        }
+      }
+    } else if (!silent) {
+      const feedbackMessage = message || 'Saved routes refreshed.';
+      showSavedRoutesFeedback(state, feedbackMessage);
+    } else {
+      showSavedRoutesFeedback(state, '');
+    }
+  } catch (error) {
+    console.error('Failed to load saved routes for editor', error);
+    state.routes = [];
+    renderSavedRoutesList(state);
+    showSavedRoutesFeedback(state, 'Unable to load saved routes right now. Try refreshing in a moment.', true);
+  } finally {
+    setSavedRoutesLoading(state, false);
+  }
+}
+
+function renderSavedRoutesList(state) {
+  if (!state || !state.list) return;
+  const list = state.list;
+  list.innerHTML = '';
+
+  if (!Array.isArray(state.routes) || state.routes.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'route-adder-saved__empty';
+    empty.textContent = 'No routes saved yet. Use the Route Adder to capture your first corridor.';
+    list.appendChild(empty);
+    return;
+  }
+
+  const sortedRoutes = sortRoutesForManager(state.routes, state.collator);
+
+  sortedRoutes.forEach(route => {
+    const item = document.createElement('li');
+    item.className = 'route-adder-saved__item';
+
+    const text = document.createElement('div');
+    text.className = 'route-adder-saved__item-text';
+
+    const name = document.createElement('span');
+    name.className = 'route-adder-saved__item-name';
+    name.textContent = route.name || 'Saved route';
+    text.appendChild(name);
+
+    const meta = document.createElement('span');
+    meta.className = 'route-adder-saved__item-meta';
+    const city = route.city || 'Unspecified city';
+    const province = route.province || 'Unspecified province';
+    meta.textContent = `${city}, ${province}`;
+    text.appendChild(meta);
+
+    item.appendChild(text);
+
+    const actions = document.createElement('div');
+    actions.className = 'route-adder-saved__actions';
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'cta danger';
+    deleteButton.textContent = 'Delete';
+    deleteButton.dataset.routeAction = 'delete';
+    deleteButton.dataset.routeId = route.routeId;
+    actions.appendChild(deleteButton);
+
+    item.appendChild(actions);
+    list.appendChild(item);
+  });
+}
+
+function showSavedRoutesFeedback(state, message, isError = false) {
+  if (!state || !state.feedback) return;
+  state.feedback.textContent = message || '';
+  state.feedback.hidden = !message;
+  state.feedback.classList.toggle('error', Boolean(isError));
+}
+
+function handleSavedRoutesListClick(event) {
+  const target = event.target instanceof HTMLElement ? event.target.closest('[data-route-action]') : null;
+  if (!target) return;
+  const action = target.dataset.routeAction;
+  const routeId = target.dataset.routeId;
+  if (action === 'delete' && routeId) {
+    const savedState = routeEditorState ? routeEditorState.savedRoutes : null;
+    if (!savedState) return;
+    const route = savedState.routes.find(entry => entry.routeId === routeId);
+    if (route) {
+      deleteSavedRouteRecord(route, target, savedState);
+    }
+  }
+}
+
+async function deleteSavedRouteRecord(route, triggerButton, state) {
+  if (!route || !state) return;
+  const confirmDelete = window.confirm(`Delete "${route.name || 'this route'}" from saved routes? This cannot be undone.`);
+  if (!confirmDelete) return;
+
+  const button = triggerButton instanceof HTMLButtonElement ? triggerButton : null;
+  const originalLabel = button ? button.textContent : '';
+
+  try {
+    if (button) button.disabled = true;
+    if (button) button.textContent = 'Deleting…';
+    setSavedRoutesLoading(state, true);
+
+    const response = await fetch(`/api/routes/${encodeURIComponent(route.routeId)}`, { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error(`Delete failed with status ${response.status}`);
+    }
+
+    await loadSavedRoutesForEditor(state, { silent: true, force: true });
+    showSavedRoutesFeedback(state, `Route "${route.name}" deleted.`);
+    if (routeEditorState) {
+      setEditorStatus(routeEditorState, `Removed "${route.name}" from saved routes.`);
+    }
+    if (routeFinderState && typeof loadRoutesForFinder === 'function') {
+      loadRoutesForFinder();
+    }
+  } catch (error) {
+    console.error('Failed to delete saved route', error);
+    showSavedRoutesFeedback(state, 'Unable to delete this route right now. Please try again.', true);
+  } finally {
+    setSavedRoutesLoading(state, false);
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalLabel || 'Delete';
+    }
+  }
+}
+
+function sortRoutesForManager(routes, collator) {
+  const comparer = collator || new Intl.Collator('en', { sensitivity: 'base' });
+  return routes
+    .slice()
+    .sort((a, b) => {
+      const provinceCompare = comparer.compare(a.province || '', b.province || '');
+      if (provinceCompare !== 0) return provinceCompare;
+      const cityCompare = comparer.compare(a.city || '', b.city || '');
+      if (cityCompare !== 0) return cityCompare;
+      return comparer.compare(a.name || '', b.name || '');
+    });
+}
+
 function setupRouteAdder(map) {
   if (routeEditorState) return;
 
@@ -424,6 +676,7 @@ function setupRouteAdder(map) {
     history: [],
     redoStack: [],
     pathListeners: [],
+    savedRoutes: null,
     polyline: new google.maps.Polyline({
       map,
       strokeColor: '#2563eb',
@@ -454,6 +707,11 @@ function setupRouteAdder(map) {
     }),
     mapClickListener: null,
   };
+
+  const savedRoutesState = setupSavedRoutesManager();
+  if (savedRoutesState) {
+    routeEditorState.savedRoutes = savedRoutesState;
+  }
 
   routeEditorState.mapClickListener = map.addListener('click', event => {
     if (!routeEditorState || routeEditorState.mode !== 'draw') return;
