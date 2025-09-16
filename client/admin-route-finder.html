@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Route Finder</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="app.js" defer></script>
+</head>
+<body class="page page-admin-route-finder">
+  <div id="topbar">
+    <a href="/">iTaxi-Finder</a>
+    <a href="/route-finder.html">Route Finder</a>
+    <a href="/route-adder.html">Route Adder</a>
+    <a href="/delivery.html">Delivery</a>
+    <a href="/community.html">Community</a>
+    <a href="/registration.html">Registration</a>
+    <a href="/about.html">About</a>
+  </div>
+  <section id="admin-panel" class="overlay-panel admin-panel" aria-labelledby="admin-panel-heading">
+    <h1 id="admin-panel-heading">Admin Route Finder</h1>
+    <p class="admin-panel__intro">
+      Monitor the live visibility of your registered drivers and taxis. Drivers can opt-in to share their current location and
+      taxi owners can refresh fleet positions as vehicles move along their routes.
+    </p>
+    <section class="admin-panel__section" aria-labelledby="admin-driver-heading">
+      <h2 id="admin-driver-heading">Taxi driver visibility</h2>
+      <p class="admin-panel__status" data-driver-status>
+        Register as a taxi driver to enable your live location on the Admin Route Finder.
+      </p>
+      <div class="admin-panel__actions">
+        <button type="button" class="cta" data-driver-enable>Enable live location</button>
+        <button type="button" class="cta secondary" data-driver-refresh>Refresh location</button>
+      </div>
+      <p class="admin-feedback" data-driver-feedback aria-live="polite"></p>
+      <dl class="admin-summary" data-driver-summary hidden>
+        <div>
+          <dt>Last update</dt>
+          <dd data-driver-last-update>—</dd>
+        </div>
+        <div>
+          <dt>Position</dt>
+          <dd data-driver-position>—</dd>
+        </div>
+      </dl>
+    </section>
+    <section class="admin-panel__section" aria-labelledby="admin-owner-heading">
+      <h2 id="admin-owner-heading">Fleet overview</h2>
+      <p class="admin-panel__status" data-owner-status>
+        Register as a taxi owner and capture your fleet details to manage their live map positions here.
+      </p>
+      <div class="admin-feedback" data-owner-feedback aria-live="polite"></div>
+      <div class="admin-taxi-list" data-owner-taxi-list hidden></div>
+      <p class="admin-empty-state" data-owner-empty hidden>
+        No taxis registered yet. Add your vehicles on the registration page to begin tracking.
+      </p>
+    </section>
+  </section>
+  <div id="map"></div>
+</body>
+</html>

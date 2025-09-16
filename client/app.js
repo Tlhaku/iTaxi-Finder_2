@@ -2,6 +2,186 @@ let mapInstance;
 let routeEditorState;
 let resizeListenerAttached = false;
 let routeFinderState;
+let adminRouteFinderState;
+
+const STORAGE_KEYS = {
+  driverProfile: 'itaxiFinderDriverProfile',
+  ownerProfile: 'itaxiFinderOwnerProfile',
+};
+
+function safeStorageGet(key, fallback = null) {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return fallback;
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    console.warn('Unable to read stored data', error);
+    return fallback;
+  }
+}
+
+function safeStorageSet(key, value) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn('Unable to persist data', error);
+  }
+}
+
+function safeStorageRemove(key) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch (error) {
+    console.warn('Unable to remove stored data', error);
+  }
+}
+
+function generateId(prefix = 'id') {
+  const randomPart = Math.random().toString(36).slice(2, 8);
+  return `${prefix}-${Date.now().toString(36)}-${randomPart}`;
+}
+
+function getDriverProfile() {
+  return safeStorageGet(STORAGE_KEYS.driverProfile, null);
+}
+
+function setDriverProfile(profile) {
+  if (!profile) {
+    safeStorageRemove(STORAGE_KEYS.driverProfile);
+  } else {
+    safeStorageSet(STORAGE_KEYS.driverProfile, profile);
+  }
+  notifyAdminDataChanged();
+}
+
+function getOwnerProfile() {
+  return safeStorageGet(STORAGE_KEYS.ownerProfile, null);
+}
+
+function setOwnerProfile(profile) {
+  if (!profile) {
+    safeStorageRemove(STORAGE_KEYS.ownerProfile);
+  } else {
+    safeStorageSet(STORAGE_KEYS.ownerProfile, profile);
+  }
+  notifyAdminDataChanged();
+}
+
+function requestCurrentPosition() {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by this browser.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          lat: Number(position.coords.latitude),
+          lng: Number(position.coords.longitude),
+          accuracy: Number(position.coords.accuracy),
+          timestamp: Date.now(),
+        });
+      },
+      error => {
+        reject(new Error((error && error.message) || 'Unable to retrieve your location.'));
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+    );
+  });
+}
+
+function enableDriverLiveLocation() {
+  const profile = getDriverProfile();
+  if (!profile) {
+    return Promise.reject(new Error('Register as a taxi driver before enabling live location.'));
+  }
+  return requestCurrentPosition().then(location => {
+    const updated = { ...profile, sharingEnabled: true, lastKnownLocation: location };
+    setDriverProfile(updated);
+    return updated;
+  });
+}
+
+function disableDriverLiveLocation() {
+  const profile = getDriverProfile();
+  if (!profile) {
+    return Promise.reject(new Error('Register as a taxi driver before disabling live location.'));
+  }
+  const updated = { ...profile, sharingEnabled: false };
+  setDriverProfile(updated);
+  return Promise.resolve(updated);
+}
+
+function refreshDriverLocation() {
+  const profile = getDriverProfile();
+  if (!profile) {
+    return Promise.reject(new Error('Register as a taxi driver before refreshing your location.'));
+  }
+  if (!profile.sharingEnabled) {
+    return Promise.reject(new Error('Enable live location before refreshing your position.'));
+  }
+  return requestCurrentPosition().then(location => {
+    const updated = { ...profile, sharingEnabled: true, lastKnownLocation: location };
+    setDriverProfile(updated);
+    return updated;
+  });
+}
+
+function updateOwnerTaxiLocation(taxiId) {
+  const owner = getOwnerProfile();
+  if (!owner || !Array.isArray(owner.taxis)) {
+    return Promise.reject(new Error('Register your taxis before updating their locations.'));
+  }
+  const index = owner.taxis.findIndex(taxi => taxi.id === taxiId);
+  if (index === -1) {
+    return Promise.reject(new Error('Taxi not found. Refresh the Admin Route Finder and try again.'));
+  }
+  return requestCurrentPosition().then(location => {
+    const updatedTaxi = { ...owner.taxis[index], lastKnownLocation: location };
+    const updatedOwner = { ...owner, taxis: owner.taxis.slice() };
+    updatedOwner.taxis[index] = updatedTaxi;
+    setOwnerProfile(updatedOwner);
+    return updatedTaxi;
+  });
+}
+
+function formatRelativeTimestamp(timestamp) {
+  if (!Number.isFinite(timestamp)) return 'Not updated yet';
+  const diff = Date.now() - timestamp;
+  if (diff < 30 * 1000) return 'Moments ago';
+  if (diff < 90 * 1000) return 'About a minute ago';
+  if (diff < 60 * 60 * 1000) {
+    const minutes = Math.round(diff / (60 * 1000));
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (diff < 24 * 60 * 60 * 1000) {
+    const hours = Math.round(diff / (60 * 60 * 1000));
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  return new Date(timestamp).toLocaleString('en-ZA');
+}
+
+function formatLocationSummary(location) {
+  if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+    return 'No live position recorded yet.';
+  }
+  return `${formatCoordinate(location.lat)}, ${formatCoordinate(location.lng)}`;
+}
+
+function notifyAdminDataChanged() {
+  if (!adminRouteFinderState) return;
+  renderAdminDriverSection();
+  renderAdminOwnerSection();
+  updateAdminMarkers();
+  fitAdminMapToEntities();
+  if (adminRouteFinderState.map) {
+    repositionMapControls(adminRouteFinderState.map.getDiv());
+  }
+}
 
 async function init() {
   try {
@@ -25,6 +205,10 @@ async function init() {
     });
 
     applyLayoutOffsets(getControlOffset());
+
+    if (document.body.classList.contains('page-registration')) {
+      setupRegistration();
+    }
 
     const response = await fetch('/config');
     if (!response.ok) throw new Error(`Config request failed: ${response.status}`);
@@ -112,6 +296,10 @@ function initMap() {
 
   if (document.body.classList.contains('page-route-finder')) {
     setupRouteFinder(mapInstance);
+  }
+
+  if (document.body.classList.contains('page-admin-route-finder')) {
+    setupAdminRouteFinder(mapInstance);
   }
 }
 
@@ -605,6 +793,385 @@ function buildStopsFromPath(path) {
     stops.push({ name: 'End', lat: last.lat, lng: last.lng });
   }
   return stops;
+}
+
+function setupRegistration() {
+  const form = document.querySelector('[data-registration-form]');
+  if (!form || form.dataset.registrationBound === 'true') return;
+
+  form.dataset.registrationBound = 'true';
+
+  const roleSelect = form.querySelector('select[name="role"]');
+  const dynamicContainer = form.querySelector('[data-role-fields]');
+  const errorElement = form.querySelector('[data-registration-error]');
+  const successPanel = document.getElementById('registration-success');
+  const successMessage = successPanel ? successPanel.querySelector('[data-registration-success-message]') : null;
+  const successActions = successPanel ? successPanel.querySelector('[data-registration-success-actions]') : null;
+  const successFeedback = successPanel ? successPanel.querySelector('[data-registration-feedback]') : null;
+
+  const state = {
+    ownerTaxiList: null,
+  };
+
+  function clearError() {
+    if (errorElement) {
+      errorElement.hidden = true;
+      errorElement.textContent = '';
+    }
+  }
+
+  function showError(message) {
+    if (!errorElement) return;
+    errorElement.textContent = message;
+    errorElement.hidden = false;
+    if (successPanel) {
+      successPanel.hidden = true;
+    }
+  }
+
+  function resetSuccessPanel() {
+    if (!successPanel) return;
+    successPanel.hidden = true;
+    if (successMessage) successMessage.textContent = '';
+    if (successActions) successActions.innerHTML = '';
+    if (successFeedback) {
+      successFeedback.textContent = '';
+      successFeedback.classList.remove('error');
+    }
+  }
+
+  function showSuccess(message, actions = []) {
+    if (!successPanel) return;
+    if (successMessage) {
+      successMessage.textContent = message;
+    }
+    if (successActions) {
+      successActions.innerHTML = '';
+      actions.forEach(action => successActions.appendChild(action));
+    }
+    if (successFeedback) {
+      successFeedback.textContent = '';
+      successFeedback.classList.remove('error');
+    }
+    successPanel.hidden = false;
+    if (typeof successPanel.scrollIntoView === 'function') {
+      successPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (typeof successPanel.focus === 'function') {
+      successPanel.focus({ preventScroll: true });
+    }
+  }
+
+  function createOwnerTaxiFieldset(initial = {}) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'registration-owner-taxi';
+    fieldset.dataset.ownerTaxi = 'true';
+    fieldset.dataset.taxiId = initial.id || generateId('taxi');
+
+    const legend = document.createElement('legend');
+    legend.textContent = 'Taxi';
+    fieldset.appendChild(legend);
+
+    const header = document.createElement('div');
+    header.className = 'registration-owner-taxi__header';
+    const title = document.createElement('h3');
+    title.textContent = initial.name || 'Taxi';
+    header.appendChild(title);
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'registration-owner-taxi__remove';
+    removeButton.setAttribute('aria-label', 'Remove taxi');
+    removeButton.textContent = '×';
+    removeButton.addEventListener('click', () => {
+      fieldset.remove();
+      refreshOwnerTaxiTitles();
+    });
+    header.appendChild(removeButton);
+
+    fieldset.appendChild(header);
+
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = 'Taxi name or nickname';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.name = 'taxi-name';
+    nameInput.placeholder = 'e.g. Soweto CBD Express';
+    if (initial.name) nameInput.value = initial.name;
+    nameInput.addEventListener('input', refreshOwnerTaxiTitles);
+    nameLabel.appendChild(nameInput);
+    fieldset.appendChild(nameLabel);
+
+    const regLabel = document.createElement('label');
+    regLabel.textContent = 'Registration / Fleet number (optional)';
+    const regInput = document.createElement('input');
+    regInput.type = 'text';
+    regInput.name = 'taxi-registration';
+    regInput.placeholder = 'e.g. CA 123-456';
+    if (initial.registration) regInput.value = initial.registration;
+    regLabel.appendChild(regInput);
+    fieldset.appendChild(regLabel);
+
+    return fieldset;
+  }
+
+  function refreshOwnerTaxiTitles() {
+    if (!state.ownerTaxiList) return;
+    const groups = Array.from(state.ownerTaxiList.querySelectorAll('[data-owner-taxi]'));
+    groups.forEach((fieldset, index) => {
+      const title = fieldset.querySelector('.registration-owner-taxi__header h3');
+      const nameInput = fieldset.querySelector('input[name="taxi-name"]');
+      if (title) {
+        const fallback = `Taxi ${index + 1}`;
+        title.textContent = nameInput && nameInput.value.trim() ? nameInput.value.trim() : fallback;
+      }
+      const legend = fieldset.querySelector('legend');
+      if (legend) {
+        legend.textContent = `Taxi ${index + 1}`;
+      }
+    });
+  }
+
+  function collectOwnerTaxiEntries() {
+    if (!state.ownerTaxiList) return [];
+    const rows = Array.from(state.ownerTaxiList.querySelectorAll('[data-owner-taxi]'));
+    return rows
+      .map(row => {
+        const id = row.dataset.taxiId || generateId('taxi');
+        row.dataset.taxiId = id;
+        const nameInput = row.querySelector('input[name="taxi-name"]');
+        const regInput = row.querySelector('input[name="taxi-registration"]');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const registration = regInput ? regInput.value.trim() : '';
+        if (!name && !registration) return null;
+        return {
+          id,
+          name,
+          registration,
+          lastKnownLocation: null,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function renderRoleFields(role) {
+    if (!dynamicContainer) return;
+    dynamicContainer.innerHTML = '';
+    state.ownerTaxiList = null;
+
+    if (role === 'driver') {
+      const note = document.createElement('div');
+      note.className = 'registration-driver-note';
+      note.innerHTML =
+        '<strong>Enable live visibility</strong>After submitting, share your location to appear on the Admin Route Finder.';
+      dynamicContainer.appendChild(note);
+
+      const vehicleLabel = document.createElement('label');
+      vehicleLabel.textContent = 'Vehicle nickname or association (optional)';
+      const vehicleInput = document.createElement('input');
+      vehicleInput.type = 'text';
+      vehicleInput.name = 'driverVehicle';
+      vehicleInput.placeholder = 'e.g. Soweto — Sandton Quantum';
+      vehicleLabel.appendChild(vehicleInput);
+      dynamicContainer.appendChild(vehicleLabel);
+      return;
+    }
+
+    if (role === 'owner') {
+      const note = document.createElement('div');
+      note.className = 'registration-driver-note';
+      note.innerHTML =
+        '<strong>Map your fleet</strong>List each taxi you manage. Update live positions later from the Admin Route Finder.';
+      dynamicContainer.appendChild(note);
+
+      const list = document.createElement('div');
+      list.className = 'registration-owner-fleet';
+      list.dataset.ownerTaxiList = 'true';
+      dynamicContainer.appendChild(list);
+      state.ownerTaxiList = list;
+
+      list.appendChild(createOwnerTaxiFieldset());
+      refreshOwnerTaxiTitles();
+
+      const actions = document.createElement('div');
+      actions.className = 'registration-owner-actions';
+      const addButton = document.createElement('button');
+      addButton.type = 'button';
+      addButton.className = 'cta secondary';
+      addButton.textContent = 'Add another taxi';
+      addButton.addEventListener('click', () => {
+        list.appendChild(createOwnerTaxiFieldset());
+        refreshOwnerTaxiTitles();
+      });
+      actions.appendChild(addButton);
+      dynamicContainer.appendChild(actions);
+      return;
+    }
+
+    const info = document.createElement('p');
+    info.className = 'registration-feedback';
+    info.textContent =
+      'Complete your registration. Taxi drivers and owners unlock live tracking inside the Admin Route Finder.';
+    dynamicContainer.appendChild(info);
+  }
+
+  function renderDriverSuccessPanel() {
+    const profile = getDriverProfile();
+    if (!profile) return;
+    const message = profile.sharingEnabled
+      ? `${profile.name || 'Taxi driver'}, your live location is active. Refresh it whenever you need to update the Admin Route Finder.`
+      : `Thanks ${profile.name || 'Taxi driver'}! Enable live location to appear on the Admin Route Finder.`;
+    const actions = [];
+
+    const enableButton = document.createElement('button');
+    enableButton.type = 'button';
+    enableButton.className = 'cta';
+    enableButton.textContent = profile.sharingEnabled ? 'Refresh live location' : 'Enable live location now';
+    enableButton.addEventListener('click', () => {
+      if (successFeedback) {
+        successFeedback.textContent = 'Requesting your current position...';
+        successFeedback.classList.remove('error');
+      }
+      const actionPromise = profile.sharingEnabled ? refreshDriverLocation() : enableDriverLiveLocation();
+      actionPromise
+        .then(() => {
+          if (successFeedback) {
+            successFeedback.textContent = 'Live location updated. Open the Admin Route Finder to view your marker.';
+            successFeedback.classList.remove('error');
+          }
+          renderDriverSuccessPanel();
+        })
+        .catch(error => {
+          if (successFeedback) {
+            successFeedback.textContent = error.message || 'Unable to update your location.';
+            successFeedback.classList.add('error');
+          }
+        });
+    });
+    actions.push(enableButton);
+
+    const adminLink = document.createElement('a');
+    adminLink.href = '/admin-route-finder.html';
+    adminLink.className = 'cta secondary';
+    adminLink.textContent = 'Open Admin Route Finder';
+    actions.push(adminLink);
+
+    showSuccess(message, actions);
+  }
+
+  function renderOwnerSuccessPanel() {
+    const profile = getOwnerProfile();
+    if (!profile) return;
+    const total = Array.isArray(profile.taxis) ? profile.taxis.length : 0;
+    const message =
+      total > 0
+        ? `${profile.name || 'Taxi owner'}, ${total} taxi${total === 1 ? '' : 's'} are ready to display on the Admin Route Finder.`
+        : `${profile.name || 'Taxi owner'}, your profile is saved. Add taxis to manage their live visibility.`;
+    const actions = [];
+
+    const adminLink = document.createElement('a');
+    adminLink.href = '/admin-route-finder.html';
+    adminLink.className = 'cta';
+    adminLink.textContent = 'Open Admin Route Finder';
+    actions.push(adminLink);
+
+    showSuccess(message, actions);
+  }
+
+  function renderGenericSuccess(role, name) {
+    const message = `Thanks ${name || 'for registering'}! We'll follow up with activation details for the ${role} workspace.`;
+    const actions = [];
+    const adminLink = document.createElement('a');
+    adminLink.href = '/admin-route-finder.html';
+    adminLink.className = 'cta secondary';
+    adminLink.textContent = 'Visit Admin Route Finder';
+    actions.push(adminLink);
+    showSuccess(message, actions);
+  }
+
+  if (roleSelect) {
+    renderRoleFields(roleSelect.value || 'collector');
+    roleSelect.addEventListener('change', event => {
+      clearError();
+      resetSuccessPanel();
+      const nextRole = event.target ? event.target.value : 'collector';
+      renderRoleFields(nextRole || 'collector');
+    });
+  } else if (dynamicContainer) {
+    dynamicContainer.innerHTML = '';
+  }
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    clearError();
+    resetSuccessPanel();
+
+    const formData = new FormData(form);
+    const role = (formData.get('role') || 'collector').toString();
+    const name = (formData.get('name') || '').trim();
+    if (!name) {
+      showError('Please provide your full name so we can personalise your workspace.');
+      return;
+    }
+
+    const email = (formData.get('email') || '').trim();
+    const phone = (formData.get('phone') || '').trim();
+    const routes = (formData.get('routes') || '').trim();
+
+    if (role === 'driver') {
+      const vehicle = (formData.get('driverVehicle') || '').trim();
+      const profile = {
+        id: generateId('driver'),
+        role,
+        name,
+        email,
+        phone,
+        routes,
+        vehicle,
+        sharingEnabled: false,
+        lastKnownLocation: null,
+        timestamp: Date.now(),
+      };
+      setDriverProfile(profile);
+      renderDriverSuccessPanel();
+    } else if (role === 'owner') {
+      const taxis = collectOwnerTaxiEntries();
+      if (!taxis.length) {
+        showError('Add at least one taxi so that your fleet can appear on the Admin Route Finder.');
+        return;
+      }
+      const profile = {
+        id: generateId('owner'),
+        role,
+        name,
+        email,
+        phone,
+        routes,
+        taxis,
+        timestamp: Date.now(),
+      };
+      setOwnerProfile(profile);
+      renderOwnerSuccessPanel();
+    } else {
+      renderGenericSuccess(role, name);
+    }
+
+    form.reset();
+    if (roleSelect) {
+      roleSelect.value = role;
+      renderRoleFields(role);
+    } else {
+      renderRoleFields('collector');
+    }
+  });
+
+  const storedDriver = getDriverProfile();
+  const storedOwner = getOwnerProfile();
+  if (storedDriver) {
+    renderDriverSuccessPanel();
+  } else if (storedOwner) {
+    renderOwnerSuccessPanel();
+  }
 }
 
 function setupRouteFinder(map) {
@@ -1187,6 +1754,364 @@ function handleRouteSearch(query) {
       routeFinderState.infoWindow.close();
     }
     highlightRoutes('');
+  }
+}
+
+function setupAdminRouteFinder(map) {
+  if (!map) return;
+
+  if (!adminRouteFinderState) {
+    adminRouteFinderState = {
+      map,
+      markers: new Map(),
+      driverStatus: document.querySelector('[data-driver-status]'),
+      driverEnableButton: document.querySelector('[data-driver-enable]'),
+      driverRefreshButton: document.querySelector('[data-driver-refresh]'),
+      driverFeedback: document.querySelector('[data-driver-feedback]'),
+      driverSummary: document.querySelector('[data-driver-summary]'),
+      driverLastUpdate: document.querySelector('[data-driver-last-update]'),
+      driverPosition: document.querySelector('[data-driver-position]'),
+      ownerStatus: document.querySelector('[data-owner-status]'),
+      ownerFeedback: document.querySelector('[data-owner-feedback]'),
+      ownerList: document.querySelector('[data-owner-taxi-list]'),
+      ownerEmpty: document.querySelector('[data-owner-empty]'),
+    };
+  } else {
+    adminRouteFinderState.map = map;
+  }
+
+  if (!adminRouteFinderState.markers) {
+    adminRouteFinderState.markers = new Map();
+  }
+
+  attachAdminEventListeners();
+  renderAdminDriverSection();
+  renderAdminOwnerSection();
+  updateAdminMarkers();
+  fitAdminMapToEntities();
+  repositionMapControls(map.getDiv());
+}
+
+function attachAdminEventListeners() {
+  if (!adminRouteFinderState) return;
+  const { driverEnableButton, driverRefreshButton } = adminRouteFinderState;
+
+  if (driverEnableButton && !driverEnableButton.dataset.adminBound) {
+    driverEnableButton.addEventListener('click', handleDriverEnableToggle);
+    driverEnableButton.dataset.adminBound = 'true';
+  }
+
+  if (driverRefreshButton && !driverRefreshButton.dataset.adminBound) {
+    driverRefreshButton.addEventListener('click', handleDriverRefresh);
+    driverRefreshButton.dataset.adminBound = 'true';
+  }
+}
+
+function renderAdminDriverSection() {
+  if (!adminRouteFinderState) return;
+  const {
+    driverStatus,
+    driverEnableButton,
+    driverRefreshButton,
+    driverSummary,
+    driverLastUpdate,
+    driverPosition,
+  } = adminRouteFinderState;
+
+  const profile = getDriverProfile();
+
+  if (!profile) {
+    if (driverStatus) {
+      driverStatus.textContent = 'Register as a taxi driver to manage live visibility here.';
+    }
+    if (driverEnableButton) {
+      driverEnableButton.disabled = true;
+      driverEnableButton.textContent = 'Enable live location';
+    }
+    if (driverRefreshButton) {
+      driverRefreshButton.disabled = true;
+    }
+    if (driverSummary) {
+      driverSummary.hidden = true;
+    }
+    return;
+  }
+
+  if (driverStatus) {
+    driverStatus.textContent = profile.sharingEnabled
+      ? `${profile.name || 'Taxi driver'} is broadcasting a live location. Refresh to capture the latest point.`
+      : `${profile.name || 'Taxi driver'} is registered but live location is disabled.`;
+  }
+
+  if (driverEnableButton) {
+    driverEnableButton.disabled = false;
+    driverEnableButton.textContent = profile.sharingEnabled ? 'Disable live location' : 'Enable live location';
+  }
+
+  if (driverRefreshButton) {
+    driverRefreshButton.disabled = !profile.sharingEnabled;
+  }
+
+  if (driverSummary) {
+    const hasLocation =
+      profile.sharingEnabled &&
+      profile.lastKnownLocation &&
+      Number.isFinite(profile.lastKnownLocation.lat) &&
+      Number.isFinite(profile.lastKnownLocation.lng);
+    driverSummary.hidden = !hasLocation;
+    if (hasLocation) {
+      if (driverLastUpdate) {
+        driverLastUpdate.textContent = formatRelativeTimestamp(profile.lastKnownLocation.timestamp);
+      }
+      if (driverPosition) {
+        driverPosition.textContent = formatLocationSummary(profile.lastKnownLocation);
+      }
+    }
+  }
+}
+
+function handleDriverEnableToggle() {
+  if (!adminRouteFinderState) return;
+  const { driverFeedback } = adminRouteFinderState;
+  const profile = getDriverProfile();
+  if (!profile) {
+    if (driverFeedback) {
+      driverFeedback.textContent = 'No taxi driver registration found. Submit the driver form first.';
+      driverFeedback.classList.add('error');
+    }
+    return;
+  }
+
+  if (driverFeedback) {
+    driverFeedback.classList.remove('error');
+    driverFeedback.textContent = profile.sharingEnabled
+      ? 'Disabling live location...'
+      : 'Requesting your current position...';
+  }
+
+  const action = profile.sharingEnabled ? disableDriverLiveLocation() : enableDriverLiveLocation();
+  action
+    .then(updated => {
+      if (driverFeedback) {
+        driverFeedback.textContent = updated.sharingEnabled
+          ? 'Live location enabled. Refresh it any time to keep dispatchers informed.'
+          : 'Live location disabled.';
+        driverFeedback.classList.remove('error');
+      }
+    })
+    .catch(error => {
+      if (driverFeedback) {
+        driverFeedback.textContent = error.message || 'Unable to update driver visibility.';
+        driverFeedback.classList.add('error');
+      }
+    });
+}
+
+function handleDriverRefresh() {
+  if (!adminRouteFinderState) return;
+  const { driverFeedback } = adminRouteFinderState;
+  if (driverFeedback) {
+    driverFeedback.textContent = 'Refreshing driver location...';
+    driverFeedback.classList.remove('error');
+  }
+
+  refreshDriverLocation()
+    .then(() => {
+      if (driverFeedback) {
+        driverFeedback.textContent = 'Driver location refreshed.';
+        driverFeedback.classList.remove('error');
+      }
+    })
+    .catch(error => {
+      if (driverFeedback) {
+        driverFeedback.textContent = error.message || 'Unable to refresh driver location.';
+        driverFeedback.classList.add('error');
+      }
+    });
+}
+
+function renderAdminOwnerSection() {
+  if (!adminRouteFinderState) return;
+  const { ownerStatus, ownerFeedback, ownerList, ownerEmpty } = adminRouteFinderState;
+  const profile = getOwnerProfile();
+
+  if (!profile) {
+    if (ownerStatus) {
+      ownerStatus.textContent = 'Register as a taxi owner to capture your fleet and track live positions.';
+    }
+    if (ownerList) {
+      ownerList.innerHTML = '';
+      ownerList.hidden = true;
+    }
+    if (ownerEmpty) {
+      ownerEmpty.hidden = false;
+    }
+    if (ownerFeedback) {
+      ownerFeedback.textContent = '';
+      ownerFeedback.classList.remove('error');
+    }
+    return;
+  }
+
+  const total = Array.isArray(profile.taxis) ? profile.taxis.length : 0;
+  if (ownerStatus) {
+    ownerStatus.textContent =
+      total > 0
+        ? `${profile.name || 'Taxi owner'} has ${total} taxi${total === 1 ? '' : 's'} registered.`
+        : `${profile.name || 'Taxi owner'} has no taxis captured yet.`;
+  }
+
+  if (ownerList) {
+    ownerList.innerHTML = '';
+    if (total > 0) {
+      ownerList.hidden = false;
+      profile.taxis.forEach(taxi => {
+        const card = document.createElement('article');
+        card.className = 'admin-taxi';
+
+        const title = document.createElement('h3');
+        title.textContent = taxi.name || 'Taxi';
+        card.appendChild(title);
+
+        const meta = document.createElement('p');
+        meta.className = 'admin-taxi__meta';
+        meta.textContent = taxi.registration ? `Fleet: ${taxi.registration}` : 'Registration not provided';
+        card.appendChild(meta);
+
+        const location = document.createElement('p');
+        location.className = 'admin-taxi__location';
+        const summary = formatLocationSummary(taxi.lastKnownLocation);
+        if (taxi.lastKnownLocation && Number.isFinite(taxi.lastKnownLocation.timestamp)) {
+          location.textContent = `${summary} • ${formatRelativeTimestamp(taxi.lastKnownLocation.timestamp)}`;
+        } else {
+          location.textContent = summary;
+        }
+        card.appendChild(location);
+
+        const actions = document.createElement('div');
+        actions.className = 'admin-taxi__actions';
+        const updateButton = document.createElement('button');
+        updateButton.type = 'button';
+        updateButton.className = 'cta';
+        updateButton.textContent = 'Update location';
+        updateButton.addEventListener('click', () => handleOwnerTaxiUpdate(taxi.id));
+        actions.appendChild(updateButton);
+        card.appendChild(actions);
+
+        ownerList.appendChild(card);
+      });
+    } else {
+      ownerList.hidden = true;
+    }
+  }
+
+  if (ownerEmpty) {
+    ownerEmpty.hidden = total > 0;
+  }
+
+  if (ownerFeedback && !ownerFeedback.textContent) {
+    ownerFeedback.classList.remove('error');
+  }
+}
+
+function handleOwnerTaxiUpdate(taxiId) {
+  if (!adminRouteFinderState) return;
+  const { ownerFeedback } = adminRouteFinderState;
+  if (ownerFeedback) {
+    ownerFeedback.textContent = 'Capturing taxi location...';
+    ownerFeedback.classList.remove('error');
+  }
+
+  updateOwnerTaxiLocation(taxiId)
+    .then(taxi => {
+      if (ownerFeedback) {
+        ownerFeedback.textContent = `${taxi.name || 'Taxi'} location updated.`;
+        ownerFeedback.classList.remove('error');
+      }
+    })
+    .catch(error => {
+      if (ownerFeedback) {
+        ownerFeedback.textContent = error.message || 'Unable to update taxi location.';
+        ownerFeedback.classList.add('error');
+      }
+    });
+}
+
+function updateAdminMarkers() {
+  if (!adminRouteFinderState || !adminRouteFinderState.map || !window.google || !window.google.maps) return;
+  if (!adminRouteFinderState.markers) {
+    adminRouteFinderState.markers = new Map();
+  }
+
+  adminRouteFinderState.markers.forEach(marker => marker.setMap(null));
+  adminRouteFinderState.markers.clear();
+
+  const map = adminRouteFinderState.map;
+
+  const driverProfile = getDriverProfile();
+  if (driverProfile && driverProfile.sharingEnabled && driverProfile.lastKnownLocation) {
+    const { lat, lng } = driverProfile.lastKnownLocation;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const driverMarker = new google.maps.Marker({
+        map,
+        position: { lat, lng },
+        title: `${driverProfile.name || 'Taxi driver'} (live)`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: '#2563eb',
+          fillOpacity: 0.9,
+          strokeColor: '#1d4ed8',
+          strokeWeight: 2,
+        },
+      });
+      adminRouteFinderState.markers.set('driver', driverMarker);
+    }
+  }
+
+  const ownerProfile = getOwnerProfile();
+  if (ownerProfile && Array.isArray(ownerProfile.taxis)) {
+    ownerProfile.taxis.forEach(taxi => {
+      if (!taxi.lastKnownLocation) return;
+      const { lat, lng } = taxi.lastKnownLocation;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const taxiMarker = new google.maps.Marker({
+        map,
+        position: { lat, lng },
+        title: `${taxi.name || 'Taxi'}${taxi.registration ? ` (${taxi.registration})` : ''}`.trim(),
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#f59e0b',
+          fillOpacity: 0.9,
+          strokeColor: '#b45309',
+          strokeWeight: 2,
+        },
+      });
+      adminRouteFinderState.markers.set(`taxi-${taxi.id}`, taxiMarker);
+    });
+  }
+}
+
+function fitAdminMapToEntities() {
+  if (!adminRouteFinderState || !adminRouteFinderState.map || !adminRouteFinderState.markers) return;
+  const markers = Array.from(adminRouteFinderState.markers.values()).filter(marker => !!marker.getPosition);
+  if (!markers.length) return;
+
+  const bounds = new google.maps.LatLngBounds();
+  markers.forEach(marker => {
+    const position = marker.getPosition();
+    if (position) {
+      bounds.extend(position);
+    }
+  });
+
+  if (!bounds.isEmpty()) {
+    try {
+      adminRouteFinderState.map.fitBounds(bounds, getRouteFitPadding());
+    } catch (error) {
+      console.warn('Unable to fit admin map to markers', error);
+    }
   }
 }
 
