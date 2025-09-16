@@ -205,8 +205,8 @@ async function init() {
       });
     });
 
-    applyLayoutOffsets(getControlOffset());
     setupEditorGuide();
+    applyLayoutOffsets(getControlOffset());
 
     if (document.body.classList.contains('page-registration')) {
       setupRegistration();
@@ -336,6 +336,10 @@ function getControlOffset() {
   const topbar = document.getElementById('topbar');
   const navHeight = topbar ? topbar.getBoundingClientRect().height : 56;
   let offset = navHeight + 12;
+  const editorGuide = document.getElementById('editor-guide');
+  if (editorGuide && editorGuide.isConnected) {
+    offset += editorGuide.getBoundingClientRect().height + 12;
+  }
   const banner = document.querySelector('.delivery-banner');
   if (banner && banner.isConnected) {
     offset += banner.getBoundingClientRect().height + 12;
@@ -406,6 +410,14 @@ function setupEditorGuide() {
 
   guide.dataset.guideBound = 'true';
 
+  const updateLayout = () => {
+    applyLayoutOffsets(getControlOffset());
+    const mapElement = document.getElementById('map');
+    if (mapElement) {
+      repositionMapControls(mapElement);
+    }
+  };
+
   const applyState = collapsed => {
     if (collapsed) {
       guide.classList.add('is-collapsed');
@@ -415,6 +427,7 @@ function setupEditorGuide() {
     toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     toggle.textContent = collapsed ? 'Show tips' : 'Hide tips';
     content.hidden = collapsed;
+    updateLayout();
   };
 
   const storedState = Boolean(safeStorageGet(STORAGE_KEYS.editorGuideCollapsed, false));
@@ -435,11 +448,14 @@ function setupSavedRoutesManager() {
     return routeEditorState ? routeEditorState.savedRoutes || null : null;
   }
 
+  const deleteSelect = document.querySelector('[data-route-delete-select]');
+
   const state = {
     panel,
     list: panel.querySelector('[data-saved-routes-list]'),
     refreshButton: panel.querySelector('[data-saved-routes-refresh]'),
     feedback: document.getElementById('saved-routes-feedback'),
+    deleteSelect,
     routes: [],
     isLoading: false,
     collator: new Intl.Collator('en', { sensitivity: 'base' }),
@@ -455,6 +471,11 @@ function setupSavedRoutesManager() {
     state.list.addEventListener('click', handleSavedRoutesListClick);
   }
 
+  if (state.deleteSelect && state.deleteSelect.dataset.deleteSelectBound !== 'true') {
+    state.deleteSelect.addEventListener('change', handleDeleteSelectChange);
+    state.deleteSelect.dataset.deleteSelectBound = 'true';
+  }
+
   panel.dataset.savedRoutesBound = 'true';
   loadSavedRoutesForEditor(state, { initial: true });
   return state;
@@ -468,6 +489,10 @@ function setSavedRoutesLoading(state, isLoading) {
   }
   if (state.refreshButton) {
     state.refreshButton.disabled = state.isLoading;
+  }
+  if (state.deleteSelect) {
+    const hasRoutes = state.deleteSelect.dataset.hasRoutes === 'true';
+    state.deleteSelect.disabled = state.isLoading || !hasRoutes;
   }
   if (state.panel) {
     if (state.isLoading) {
@@ -503,7 +528,7 @@ async function loadSavedRoutesForEditor(state, options = {}) {
             'No routes saved yet. Draw a corridor and choose Save to add it to the list.',
           );
         } else {
-          showSavedRoutesFeedback(state, 'Select Delete next to a saved route to remove it.');
+          showSavedRoutesFeedback(state, 'Use the tools panel dropdown to remove a saved route.');
         }
       }
     } else if (!silent) {
@@ -528,6 +553,7 @@ function renderSavedRoutesList(state) {
   list.innerHTML = '';
 
   if (!Array.isArray(state.routes) || state.routes.length === 0) {
+    populateRouteDeleteSelect(state, []);
     const empty = document.createElement('li');
     empty.className = 'route-adder-saved__empty';
     empty.textContent = 'No routes saved yet. Use the Route Adder to capture your first corridor.';
@@ -536,6 +562,7 @@ function renderSavedRoutesList(state) {
   }
 
   const sortedRoutes = sortRoutesForManager(state.routes, state.collator);
+  populateRouteDeleteSelect(state, sortedRoutes);
 
   sortedRoutes.forEach(route => {
     const item = document.createElement('li');
@@ -557,18 +584,6 @@ function renderSavedRoutesList(state) {
     text.appendChild(meta);
 
     item.appendChild(text);
-
-    const actions = document.createElement('div');
-    actions.className = 'route-adder-saved__actions';
-    const deleteButton = document.createElement('button');
-    deleteButton.type = 'button';
-    deleteButton.className = 'cta danger';
-    deleteButton.textContent = 'Delete';
-    deleteButton.dataset.routeAction = 'delete';
-    deleteButton.dataset.routeId = route.routeId;
-    actions.appendChild(deleteButton);
-
-    item.appendChild(actions);
     list.appendChild(item);
   });
 }
@@ -578,6 +593,42 @@ function showSavedRoutesFeedback(state, message, isError = false) {
   state.feedback.textContent = message || '';
   state.feedback.hidden = !message;
   state.feedback.classList.toggle('error', Boolean(isError));
+}
+
+function populateRouteDeleteSelect(state, routes) {
+  if (!state || !state.deleteSelect) return;
+
+  const select = state.deleteSelect;
+  const hasRoutes = Array.isArray(routes) && routes.length > 0;
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = hasRoutes
+    ? 'Select a saved route to delete…'
+    : 'No saved routes available';
+  select.appendChild(placeholder);
+
+  if (hasRoutes) {
+    routes.forEach(route => {
+      const option = document.createElement('option');
+      option.value = route.routeId;
+      const city = route.city || 'Unspecified city';
+      const province = route.province || 'Unspecified province';
+      option.textContent = `${route.name || 'Saved route'} — ${city}, ${province}`;
+      select.appendChild(option);
+    });
+  }
+
+  select.dataset.hasRoutes = hasRoutes ? 'true' : 'false';
+  if (hasRoutes && routes.some(route => route.routeId === previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = '';
+  }
+
+  select.disabled = state.isLoading || !hasRoutes;
 }
 
 function handleSavedRoutesListClick(event) {
@@ -595,10 +646,42 @@ function handleSavedRoutesListClick(event) {
   }
 }
 
-async function deleteSavedRouteRecord(route, triggerButton, state) {
-  if (!route || !state) return;
+function handleDeleteSelectChange(event) {
+  const select = event.target instanceof HTMLSelectElement ? event.target : null;
+  if (!select) return;
+  const routeId = select.value;
+  if (!routeId) return;
+
+  const state = routeEditorState ? routeEditorState.savedRoutes : null;
+  if (!state) {
+    select.value = '';
+    return;
+  }
+
+  const route = state.routes.find(entry => entry.routeId === routeId);
+  if (!route) {
+    select.value = '';
+    return;
+  }
+
   const confirmDelete = window.confirm(`Delete "${route.name || 'this route'}" from saved routes? This cannot be undone.`);
-  if (!confirmDelete) return;
+  if (!confirmDelete) {
+    select.value = '';
+    return;
+  }
+
+  deleteSavedRouteRecord(route, null, state, { skipPrompt: true }).finally(() => {
+    select.value = '';
+  });
+}
+
+async function deleteSavedRouteRecord(route, triggerButton, state, options = {}) {
+  if (!route || !state) return;
+  const skipPrompt = Boolean(options.skipPrompt);
+  if (!skipPrompt) {
+    const confirmDelete = window.confirm(`Delete "${route.name || 'this route'}" from saved routes? This cannot be undone.`);
+    if (!confirmDelete) return;
+  }
 
   const button = triggerButton instanceof HTMLButtonElement ? triggerButton : null;
   const originalLabel = button ? button.textContent : '';
@@ -660,7 +743,6 @@ function setupRouteAdder(map) {
     undo: tools.querySelector('[data-editor-action="undo"]'),
     redo: tools.querySelector('[data-editor-action="redo"]'),
     save: tools.querySelector('[data-editor-action="save"]'),
-    delete: tools.querySelector('[data-editor-action="delete"]'),
     exit: tools.querySelector('[data-editor-action="exit"]'),
   };
 
@@ -737,7 +819,6 @@ function handleRouteEditorAction(action) {
     undo: undoRouteStep,
     redo: redoRouteStep,
     save: saveCurrentRoute,
-    delete: deleteCurrentRoute,
     exit: exitRouteEditing,
   };
 
@@ -922,7 +1003,6 @@ function updateEditorControls(state) {
   setDisabled(actions.undo, !hasHistory || state.isBusy);
   setDisabled(actions.redo, !hasRedo || state.isBusy);
   setDisabled(actions.save, (!hasMultiplePoints && !hasSnapped) || state.isBusy);
-  setDisabled(actions.delete, (!hasPath && !hasSnapped) || state.isBusy);
   setDisabled(actions.exit, state.isBusy || (!hasPath && !hasSnapped && state.mode === 'idle'));
 }
 
