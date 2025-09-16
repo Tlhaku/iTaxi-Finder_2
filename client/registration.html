@@ -21,7 +21,7 @@
     <h1 id="registration-heading">Join the iTaxi-Finder network</h1>
     <p>Register your role to unlock tools tailored for collectors, drivers, depot owners, and partners. We capture just enough
       information to verify your business, route alignment, and preferred contact channels before activating your workspace.</p>
-    <form class="registration-form" data-static-form>
+    <form class="registration-form" data-static-form data-registration-form>
       <label>
         Select your role
         <select name="role">
@@ -49,8 +49,24 @@
         Operating routes or service areas
         <textarea name="routes" placeholder="List the routes, ranks, or suburbs you serve"></textarea>
       </label>
-      <button type="submit" class="cta">Submit registration</button>
+      <div class="registration-role-fields" data-role-fields></div>
+      <p class="registration-error" data-registration-error hidden role="alert"></p>
+      <div class="registration-owner-actions" data-registration-actions>
+        <button type="submit" class="cta">Submit registration</button>
+      </div>
     </form>
+    <section
+      id="registration-success"
+      class="registration-success overlay-card"
+      hidden
+      aria-labelledby="registration-success-heading"
+      tabindex="-1"
+    >
+      <h2 id="registration-success-heading">Registration submitted</h2>
+      <p class="registration-success__message" data-registration-success-message></p>
+      <div class="registration-success__actions" data-registration-success-actions></div>
+      <p class="registration-feedback" data-registration-feedback aria-live="polite"></p>
+    </section>
   </main>
   <div id="map"></div>
 </body>
