@@ -104,6 +104,11 @@ function sanitizeStops(stops) {
     .filter(Boolean);
 }
 
+function sanitizeRegion(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
 function sanitizeFare(fare = {}) {
   const min = Number.isFinite(Number(fare.min)) ? Number(fare.min) : 0;
   const maxCandidate = Number.isFinite(Number(fare.max)) ? Number(fare.max) : min;
@@ -228,6 +233,8 @@ function handleCreateRoute(req, res) {
         name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : `Route ${nextId}`,
         fare: sanitizeFare(payload.fare),
         gesture: typeof payload.gesture === 'string' ? payload.gesture.trim() : '',
+        province: sanitizeRegion(payload.province),
+        city: sanitizeRegion(payload.city),
         stops: sanitizeStops(payload.stops),
         frequencyPerHour: payload.frequencyPerHour || null,
         firstLoad: payload.firstLoad || '',
@@ -270,6 +277,8 @@ function handleUpdateRoute(req, res, id) {
         ...payload,
         name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : target.name,
         gesture: typeof payload.gesture === 'string' ? payload.gesture.trim() : target.gesture,
+        province: sanitizeRegion(payload.province !== undefined ? payload.province : target.province),
+        city: sanitizeRegion(payload.city !== undefined ? payload.city : target.city),
         fare: sanitizeFare(payload.fare || target.fare),
         stops: sanitizeStops(payload.stops || target.stops),
         path: basePath,
