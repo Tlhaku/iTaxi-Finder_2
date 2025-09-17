@@ -786,6 +786,13 @@ function setupRouteAdder(map) {
   const tools = document.getElementById('editor-tools');
   if (!tools) return;
 
+  if (map && typeof map.setOptions === 'function') {
+    map.setOptions({
+      gestureHandling: 'greedy',
+      scrollwheel: true,
+    });
+  }
+
   const statusElement = document.getElementById('editor-status');
   const actions = {
     draw: tools.querySelector('[data-editor-action="draw"]'),
