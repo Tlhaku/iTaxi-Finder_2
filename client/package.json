@@ -1,0 +1,8 @@
+{
+  "name": "itaxi-finder-client",
+  "version": "1.0.0",
+  "description": "Frontend for iTaxi-Finder",
+  "scripts": {
+    "test": "node -e \"console.log('No tests yet')\""
+  }
+}

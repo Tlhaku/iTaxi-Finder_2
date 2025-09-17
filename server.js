@@ -3,8 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import url from 'url';
 
+<<<<<<< HEAD
 const fsp = fs.promises;
 
+=======
+>>>>>>> origin/main
 // simple .env parser
 try {
   const envData = fs.readFileSync('.env', 'utf8');
@@ -48,6 +51,7 @@ function serveStatic(res, filePath) {
   });
 }
 
+<<<<<<< HEAD
 function parseJsonBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -399,8 +403,32 @@ const server = http.createServer((req, res) => {
     return;
   }
   serveStatic(res, filePath);
+=======
+const server = http.createServer((req, res) => {
+  const parsed = url.parse(req.url, true);
+  if (parsed.pathname === '/config') {
+    sendJson(res, { mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '' });
+  } else if (parsed.pathname === '/api/routes') {
+    sendJson(res, routes);
+  } else if (parsed.pathname.startsWith('/api/routes/')) {
+    const id = parsed.pathname.split('/').pop();
+    const route = routes.find(r => String(r.routeId) === id);
+    if (route) sendJson(res, route); else sendJson(res, { message: 'Not found' }, 404);
+  } else {
+    let filePath = path.join('client', parsed.pathname === '/' ? 'index.html' : parsed.pathname);
+    // prevent directory traversal
+    if (!filePath.startsWith('client')) {
+      res.writeHead(403); res.end('Forbidden'); return;
+    }
+    serveStatic(res, filePath);
+  }
+>>>>>>> origin/main
 });
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main
 });
