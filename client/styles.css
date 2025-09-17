@@ -248,7 +248,7 @@ body.map-background {
 
 .route-adder-saved {
   position: fixed;
-  top: calc(var(--overlay-panel-top) + 148px);
+  top: calc(var(--overlay-panel-top) + 12px);
   left: 24px;
   width: min(360px, calc(100% - 48px));
   padding: 22px 24px;
@@ -465,7 +465,7 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
 
 #editor-tools {
   position: fixed;
-  top: calc(var(--overlay-panel-top) + 172px);
+  top: calc(var(--overlay-panel-top) + 12px);
   right: 28px;
   display: flex;
   flex-direction: column;
@@ -473,7 +473,7 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   padding: 20px 22px;
   width: 260px;
   max-width: calc(100vw - 56px);
-  max-height: calc(100vh - 140px);
+  max-height: var(--overlay-panel-max-height);
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 18px;
