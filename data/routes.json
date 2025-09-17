@@ -1,6 +1,7 @@
 [
   {
 <<<<<<< HEAD
+<<<<<<< HEAD
     "routeId": 2,
     "name": "JOZI ROUTE",
     "fare": {
@@ -42,10 +43,41 @@
         "lat": -26.203395,
         "lng": 27.954273
       }
+=======
+    "routeId": 1,
+    "name": "Gandhi Square – Noord Taxi Rank",
+    "province": "Gauteng",
+    "city": "Johannesburg",
+    "fare": {
+      "min": 10,
+      "max": 15,
+      "currency": "ZAR"
+    },
+    "gesture": "Point forward",
+    "stops": [
+      { "name": "Gandhi Square", "lat": -26.20491, "lng": 28.04095 },
+      { "name": "Noord Taxi Rank", "lat": -26.19835, "lng": 28.0458 }
+    ],
+    "frequencyPerHour": 12,
+    "firstLoad": "05:00",
+    "lastLoad": "21:00",
+    "rushHours": ["06:30", "07:45", "17:15"],
+    "quietHours": ["10:30", "14:00"],
+    "path": [
+      { "lat": -26.20491, "lng": 28.04095 },
+      { "lat": -26.20152, "lng": 28.04712 },
+      { "lat": -26.19835, "lng": 28.0458 }
+    ],
+    "snappedPath": [
+      { "lat": -26.20491, "lng": 28.04095 },
+      { "lat": -26.20152, "lng": 28.04712 },
+      { "lat": -26.19835, "lng": 28.0458 }
+>>>>>>> 09e0759e7c35741c245187ba5ec926a85d98f345
     ],
     "variations": []
   }
 ]
+<<<<<<< HEAD
 =======
     "routeId": 1,
     "name": "Sample Route",
@@ -55,3 +87,5 @@
   }
 ]
 >>>>>>> origin/main
+=======
+>>>>>>> 09e0759e7c35741c245187ba5ec926a85d98f345

@@ -204,6 +204,7 @@ async function init() {
       });
     });
 
+    setupResponsiveNavigation();
     applyLayoutOffsets(getControlOffset());
     setupDraggableOverlays();
 
@@ -395,6 +396,69 @@ function styleControls(mapElement, map) {
   repositionControls();
 }
 
+<<<<<<< HEAD
+=======
+function setupResponsiveNavigation() {
+  const topbar = document.getElementById('topbar');
+  if (!topbar) return;
+  const toggle = topbar.querySelector('[data-nav-toggle]');
+  const links = topbar.querySelector('[data-nav-links]');
+  if (!toggle || !links) return;
+
+  const navMediaQuery = window.matchMedia('(min-width: 900px)');
+
+  const setNavState = open => {
+    const isDesktop = navMediaQuery.matches;
+    const shouldOpen = Boolean(open) && !isDesktop;
+    topbar.dataset.navOpen = shouldOpen ? 'true' : 'false';
+    toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (isDesktop) {
+      links.hidden = false;
+    } else {
+      links.hidden = !shouldOpen;
+    }
+    const mapElement = document.getElementById('map');
+    if (mapElement) {
+      repositionMapControls(mapElement);
+    } else {
+      applyLayoutOffsets(getControlOffset());
+    }
+  };
+
+  setNavState(false);
+
+  toggle.addEventListener('click', () => {
+    if (navMediaQuery.matches) return;
+    const isOpen = topbar.dataset.navOpen === 'true';
+    setNavState(!isOpen);
+  });
+
+  links.addEventListener('click', event => {
+    if (navMediaQuery.matches) return;
+    if (event.target && event.target.closest('a')) {
+      setNavState(false);
+    }
+  });
+
+  const handleBreakpointChange = event => {
+    if (event && typeof event.matches === 'boolean') {
+      setNavState(false);
+      if (event.matches) {
+        links.hidden = false;
+      }
+    } else {
+      setNavState(false);
+    }
+  };
+
+  if (typeof navMediaQuery.addEventListener === 'function') {
+    navMediaQuery.addEventListener('change', handleBreakpointChange);
+  } else if (typeof navMediaQuery.addListener === 'function') {
+    navMediaQuery.addListener(handleBreakpointChange);
+  }
+}
+
+>>>>>>> 09e0759e7c35741c245187ba5ec926a85d98f345
 function setupDraggableOverlays() {
   const overlays = document.querySelectorAll('[data-draggable-overlay]');
   overlays.forEach(overlay => {
