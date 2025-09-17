@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thembalethu Community</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <script src="../app.js" defer></script>
+</head>
+<body class="page map-background page-community">
+    <div id="topbar" data-nav-open="false">
+    <a href="/" class="topbar__brand">iTaxi-Finder</a>
+    <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
+      <span class="topbar__menu-icon" aria-hidden="true">
+        <span class="topbar__menu-line"></span>
+        <span class="topbar__menu-line"></span>
+        <span class="topbar__menu-line"></span>
+      </span>
+      <span class="visually-hidden">Toggle navigation</span>
+    </button>
+    <nav id="topbar-navigation" class="topbar__links" data-nav-links>
+      <a href="/route-finder.html">Route Finder</a>
+      <a href="/route-adder.html">Route Adder</a>
+      <a href="/delivery.html">Delivery</a>
+      <a href="/community.html" aria-current="page">Community</a>
+      <a href="/registration.html">Registration</a>
+      <a href="/about.html">About</a>
+    </nav>
+  </div>
+  <main class="content-panel content-panel--narrow overlay-panel" data-draggable-overlay>
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+
+    <h1>Thembalethu</h1>
+    <p>No posts yet.</p>
+  </main>
+  <div id="map"></div>
+</body>
+</html>
