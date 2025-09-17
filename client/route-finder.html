@@ -17,7 +17,13 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
-  <form id="search" class="overlay-panel" role="search">
+  <form
+    id="search"
+    class="overlay-panel"
+    role="search"
+    data-draggable-overlay
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
     <label class="visually-hidden" for="search-input">Search routes</label>
     <input
       id="search-input"
@@ -28,7 +34,13 @@
     />
     <button type="submit" class="cta secondary">Search</button>
   </form>
-  <section id="finder-panel" class="overlay-panel route-finder-panel" aria-labelledby="finder-heading">
+  <section
+    id="finder-panel"
+    class="overlay-panel route-finder-panel"
+    aria-labelledby="finder-heading"
+    data-draggable-overlay
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
     <h1 id="finder-heading">Saved routes directory</h1>
     <p class="route-finder-panel__intro">
       Browse every saved corridor in the system. Select a route to highlight it on the map and review fares, stops and

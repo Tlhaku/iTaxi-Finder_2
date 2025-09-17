@@ -378,6 +378,21 @@ body.map-background {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
+.overlay-drag-handle--floating {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  width: 72px;
+  height: 20px;
+  z-index: 10;
+}
+
+.overlay-drag-handle--floating::before {
+  width: 72px;
+}
+
 .route-finder-panel.overlay-panel {
   position: fixed;
 }
@@ -906,6 +921,16 @@ body.map-background #map::after {
   inset: 0;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.28), rgba(15, 23, 42, 0.55));
   pointer-events: none;
+}
+
+body.page-route-adder #map {
+  filter: none;
+  opacity: 1;
+}
+
+body.page-route-adder #map::after {
+  content: none;
+  background: none;
 }
 
 .map-muted {

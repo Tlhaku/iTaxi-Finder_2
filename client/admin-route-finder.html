@@ -17,7 +17,13 @@
     <a href="/registration.html">Registration</a>
     <a href="/about.html">About</a>
   </div>
-  <section id="admin-panel" class="overlay-panel admin-panel" aria-labelledby="admin-panel-heading">
+  <section
+    id="admin-panel"
+    class="overlay-panel admin-panel"
+    aria-labelledby="admin-panel-heading"
+    data-draggable-overlay
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
     <h1 id="admin-panel-heading">Admin Route Finder</h1>
     <p class="admin-panel__intro">
       Monitor the live visibility of your registered drivers and taxis. Drivers can opt-in to share their current location and
