@@ -18,38 +18,12 @@
     <a href="/about.html">About</a>
   </div>
   <section
-    id="editor-guide"
-    class="editor-guide"
-    aria-labelledby="editor-guide-title"
-    role="note"
-  >
-    <div class="editor-guide__content" id="editor-guide-content">
-      <h1 id="editor-guide-title">Route editor tips</h1>
-      <p>
-        Select <strong>Draw</strong>, click point <strong>A</strong> and point <strong>B</strong>, and the first segment will
-        appear between them. Continue clicking along the exact taxi corridor, then tap <strong>Snap to Road</strong> for a
-        finely aligned path before saving.
-      </p>
-      <p class="editor-guide__hint">
-        Use <strong>Edit segment</strong> to drag bends into place, <strong>Undo</strong>/<strong>Redo</strong> to revisit
-        steps, and <strong>Exit editing</strong> when you want to clear the canvas and start again.
-      </p>
-    </div>
-    <button
-      type="button"
-      class="editor-guide__toggle link-button"
-      data-guide-toggle
-      aria-expanded="true"
-      aria-controls="editor-guide-content"
-    >
-      Hide tips
-    </button>
-  </section>
-  <section
     id="saved-routes-panel"
     class="overlay-panel route-adder-saved"
     aria-labelledby="saved-routes-heading"
+    data-draggable-overlay
   >
+    <div class="overlay-drag-handle" data-drag-handle aria-hidden="true"></div>
     <div class="route-adder-saved__header">
       <h2 id="saved-routes-heading">Saved routes</h2>
       <button type="button" class="link-button" data-saved-routes-refresh>Refresh</button>
@@ -73,7 +47,13 @@
       hidden
     ></p>
   </section>
-  <aside id="editor-tools" class="overlay-panel" aria-label="Route editing tools">
+  <aside
+    id="editor-tools"
+    class="overlay-panel"
+    aria-label="Route editing tools"
+    data-draggable-overlay
+  >
+    <div class="overlay-drag-handle" data-drag-handle aria-hidden="true"></div>
     <p id="editor-status" class="editor-status" role="status" aria-live="polite">
       Select "Draw" to start plotting a new taxi route.
     </p>

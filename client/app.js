@@ -7,7 +7,6 @@ let adminRouteFinderState;
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
   ownerProfile: 'itaxiFinderOwnerProfile',
-  editorGuideCollapsed: 'itaxiFinderEditorGuideCollapsed',
 };
 
 function safeStorageGet(key, fallback = null) {
@@ -205,8 +204,8 @@ async function init() {
       });
     });
 
-    setupEditorGuide();
     applyLayoutOffsets(getControlOffset());
+    setupDraggableOverlays();
 
     if (document.body.classList.contains('page-registration')) {
       setupRegistration();
@@ -336,10 +335,6 @@ function getControlOffset() {
   const topbar = document.getElementById('topbar');
   const navHeight = topbar ? topbar.getBoundingClientRect().height : 56;
   let offset = navHeight + 12;
-  const editorGuide = document.getElementById('editor-guide');
-  if (editorGuide && editorGuide.isConnected) {
-    offset += editorGuide.getBoundingClientRect().height + 12;
-  }
   const banner = document.querySelector('.delivery-banner');
   if (banner && banner.isConnected) {
     offset += banner.getBoundingClientRect().height + 12;
@@ -400,43 +395,99 @@ function styleControls(mapElement, map) {
   repositionControls();
 }
 
-function setupEditorGuide() {
-  const guide = document.getElementById('editor-guide');
-  if (!guide || guide.dataset.guideBound === 'true') return;
+function setupDraggableOverlays() {
+  const overlays = document.querySelectorAll('[data-draggable-overlay]');
+  overlays.forEach(overlay => {
+    if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
-  const toggle = guide.querySelector('[data-guide-toggle]');
-  const content = document.getElementById('editor-guide-content');
-  if (!toggle || !content) return;
+    const handle = overlay.querySelector('[data-drag-handle]') || overlay;
+    if (!handle) return;
 
-  guide.dataset.guideBound = 'true';
+    const handlePointerDown = event => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
 
-  const updateLayout = () => {
-    applyLayoutOffsets(getControlOffset());
-    const mapElement = document.getElementById('map');
-    if (mapElement) {
-      repositionMapControls(mapElement);
-    }
-  };
+      event.preventDefault();
 
-  const applyState = collapsed => {
-    if (collapsed) {
-      guide.classList.add('is-collapsed');
-    } else {
-      guide.classList.remove('is-collapsed');
-    }
-    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    toggle.textContent = collapsed ? 'Show tips' : 'Hide tips';
-    content.hidden = collapsed;
-    updateLayout();
-  };
+      const rect = overlay.getBoundingClientRect();
+      if (!overlay.dataset.dragConverted) {
+        overlay.dataset.dragConverted = 'true';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.right = 'auto';
+        overlay.style.bottom = 'auto';
+        overlay.style.transform = 'none';
+      }
 
-  const storedState = Boolean(safeStorageGet(STORAGE_KEYS.editorGuideCollapsed, false));
-  applyState(storedState);
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startLeft = parseFloat(overlay.style.left) || rect.left;
+      const startTop = parseFloat(overlay.style.top) || rect.top;
+      const width = rect.width;
+      const height = rect.height;
+      const pointerId = event.pointerId;
 
-  toggle.addEventListener('click', () => {
-    const nextState = !guide.classList.contains('is-collapsed');
-    applyState(nextState);
-    safeStorageSet(STORAGE_KEYS.editorGuideCollapsed, nextState);
+      const updatePosition = moveEvent => {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
+
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
+        const margin = 12;
+
+        let nextLeft = startLeft + deltaX;
+        let nextTop = startTop + deltaY;
+
+        const minLeft = margin;
+        const minTop = margin;
+        const maxLeft = Math.max(minLeft, viewportWidth - width - margin);
+        const maxTop = Math.max(minTop, viewportHeight - height - margin);
+
+        nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
+        nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
+
+        overlay.style.left = `${Math.round(nextLeft)}px`;
+        overlay.style.top = `${Math.round(nextTop)}px`;
+      };
+
+      const endDrag = () => {
+        if (typeof handle.releasePointerCapture === 'function') {
+          try {
+            handle.releasePointerCapture(pointerId);
+          } catch (error) {
+            // no-op
+          }
+        }
+        handle.removeEventListener('pointermove', updatePosition);
+        handle.removeEventListener('pointerup', endDrag);
+        handle.removeEventListener('pointercancel', endDrag);
+
+        const mapElement = document.getElementById('map');
+        if (mapElement) {
+          repositionMapControls(mapElement);
+        }
+      };
+
+      if (typeof handle.setPointerCapture === 'function') {
+        try {
+          handle.setPointerCapture(pointerId);
+        } catch (error) {
+          // ignore capture errors
+        }
+      }
+
+      handle.addEventListener('pointermove', updatePosition);
+      handle.addEventListener('pointerup', endDrag);
+      handle.addEventListener('pointercancel', endDrag);
+    };
+
+    handle.style.cursor = 'move';
+    handle.style.touchAction = 'none';
+    handle.addEventListener('pointerdown', handlePointerDown);
+    overlay.dataset.draggableBound = 'true';
   });
 }
 
