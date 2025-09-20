@@ -396,8 +396,6 @@ function styleControls(mapElement, map) {
   repositionControls();
 }
 
-<<<<<<< HEAD
-=======
 function setupResponsiveNavigation() {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
@@ -458,7 +456,6 @@ function setupResponsiveNavigation() {
   }
 }
 
->>>>>>> 09e0759e7c35741c245187ba5ec926a85d98f345
 function setupDraggableOverlays() {
   const overlays = document.querySelectorAll('[data-draggable-overlay]');
   overlays.forEach(overlay => {
