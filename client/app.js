@@ -3,6 +3,7 @@ let routeEditorState;
 let resizeListenerAttached = false;
 let routeFinderState;
 let adminRouteFinderState;
+let overlayBodyIdCounter = 0;
 
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
@@ -497,6 +498,11 @@ function setOverlayMinimizedState({ overlay, toggle, srText, icon, label }, mini
   toggle.setAttribute('aria-label', minimized ? `Restore ${label}` : `Minimise ${label}`);
   icon.textContent = minimized ? '+' : '–';
 
+  const summary = overlay.querySelector('[data-overlay-summary]');
+  if (summary) {
+    summary.setAttribute('aria-hidden', minimized ? 'false' : 'true');
+  }
+
   const mapElement = document.getElementById('map');
   if (mapElement) {
     repositionMapControls(mapElement);
@@ -540,6 +546,28 @@ function enhanceOverlayChrome(overlay) {
   toggle.setAttribute('aria-expanded', 'true');
   toggle.setAttribute('aria-label', `Minimise ${label}`);
 
+  let summary = overlay.querySelector('[data-overlay-summary]');
+  if (!summary) {
+    summary = document.createElement('span');
+    summary.className = 'overlay-panel__summary';
+    summary.setAttribute('data-overlay-summary', '');
+  }
+  summary.textContent = label;
+  summary.title = label;
+  summary.setAttribute('aria-hidden', 'true');
+
+  if (!summary.parentElement) {
+    if (handle && handle.parentElement === overlay && handle.nextSibling) {
+      overlay.insertBefore(summary, handle.nextSibling);
+    } else if (handle && handle.parentElement === overlay) {
+      overlay.appendChild(summary);
+    } else if (toggle && toggle.nextSibling) {
+      overlay.insertBefore(summary, toggle.nextSibling);
+    } else {
+      overlay.appendChild(summary);
+    }
+  }
+
   let body = overlay.querySelector('[data-overlay-body]');
   if (!body) {
     body = document.createElement('div');
@@ -551,12 +579,20 @@ function enhanceOverlayChrome(overlay) {
     if (child === toggle) return false;
     if (child === body) return false;
     if (handle && child === handle) return false;
+    if (summary && child === summary) return false;
     return true;
   });
 
   if (childrenToWrap.length) {
     childrenToWrap.forEach(child => body.appendChild(child));
   }
+
+  if (!body.id) {
+    const baseId = overlay.id ? overlay.id.replace(/[^a-zA-Z0-9_-]/g, '-') : 'overlay';
+    overlayBodyIdCounter += 1;
+    body.id = `${baseId || 'overlay'}-body-${overlayBodyIdCounter}`;
+  }
+  toggle.setAttribute('aria-controls', body.id);
 
   if (!body.parentElement) {
     if (handle && handle.parentElement === overlay && handle.nextSibling) {
