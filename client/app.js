@@ -8,6 +8,7 @@ let overlayBodyIdCounter = 0;
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
   ownerProfile: 'itaxiFinderOwnerProfile',
+  authSession: 'itaxiFinderAuthSession',
 };
 
 function safeStorageGet(key, fallback = null) {
@@ -39,6 +40,80 @@ function safeStorageRemove(key) {
   } catch (error) {
     console.warn('Unable to remove stored data', error);
   }
+}
+
+function notifyAuthChange(session) {
+  if (typeof document === 'undefined') return;
+  const detail = { session: session || null };
+  document.dispatchEvent(new CustomEvent('authchange', { detail }));
+}
+
+function getAuthSession() {
+  const session = safeStorageGet(STORAGE_KEYS.authSession, null);
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+  if (session.token && session.user) {
+    return session;
+  }
+  if (session.token) {
+    return { token: session.token, user: session.user || null };
+  }
+  return null;
+}
+
+function setAuthSession(session) {
+  if (session && session.token) {
+    safeStorageSet(STORAGE_KEYS.authSession, session);
+    notifyAuthChange(session);
+  } else {
+    safeStorageRemove(STORAGE_KEYS.authSession);
+    notifyAuthChange(null);
+  }
+}
+
+function clearAuthSession() {
+  setAuthSession(null);
+}
+
+function getLoggedInUser() {
+  const session = getAuthSession();
+  if (!session || !session.user) return null;
+  return session.user;
+}
+
+function getAuthHeaders() {
+  const session = getAuthSession();
+  if (session && session.token) {
+    return { Authorization: `Bearer ${session.token}` };
+  }
+  return {};
+}
+
+async function refreshAuthSession() {
+  const session = getAuthSession();
+  if (!session || !session.token) {
+    return null;
+  }
+  try {
+    const response = await fetch('/api/users/session', {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Session expired');
+    }
+    const data = await response.json();
+    if (data && data.user) {
+      const nextSession = { token: session.token, user: data.user };
+      setAuthSession(nextSession);
+      return nextSession;
+    }
+  } catch (error) {
+    clearAuthSession();
+  }
+  return null;
 }
 
 function generateId(prefix = 'id') {
@@ -186,6 +261,8 @@ function notifyAdminDataChanged() {
 
 async function init() {
   try {
+    await refreshAuthSession();
+
     document.querySelectorAll('form[data-static-form]').forEach(form => {
       form.addEventListener('submit', event => event.preventDefault());
     });
@@ -512,7 +589,22 @@ function setOverlayMinimizedState({ overlay, toggle, srText, icon, label }, mini
 function enhanceOverlayChrome(overlay) {
   if (!overlay || overlay.dataset.overlayChromeBound === 'true') return;
 
-  const handle = overlay.querySelector('[data-drag-handle]');
+  let handle = overlay.querySelector('[data-drag-handle]');
+  if (!handle) {
+    handle = document.createElement('div');
+    handle.className = 'overlay-drag-handle overlay-drag-handle--floating';
+    handle.setAttribute('data-drag-handle', '');
+    handle.setAttribute('aria-hidden', 'true');
+    overlay.insertBefore(handle, overlay.firstChild);
+  } else {
+    handle.classList.add('overlay-drag-handle');
+    if (!handle.hasAttribute('aria-hidden')) {
+      handle.setAttribute('aria-hidden', 'true');
+    }
+    if (handle.parentElement === overlay && overlay.firstChild !== handle) {
+      overlay.insertBefore(handle, overlay.firstChild);
+    }
+  }
   const label = getOverlayLabel(overlay);
 
   let toggle = overlay.querySelector('[data-overlay-toggle]');
@@ -866,6 +958,16 @@ function renderSavedRoutesList(state) {
     const province = route.province || 'Unspecified province';
     meta.textContent = `${city}, ${province}`;
     text.appendChild(meta);
+
+    const contributorLabel = route.addedBy && (route.addedBy.name || route.addedBy.username)
+      ? route.addedBy.name || route.addedBy.username
+      : '';
+    if (contributorLabel) {
+      const contributor = document.createElement('span');
+      contributor.className = 'route-adder-saved__item-contributor';
+      contributor.textContent = `By ${contributorLabel}`;
+      text.appendChild(contributor);
+    }
 
     item.appendChild(text);
     list.appendChild(item);
@@ -1358,6 +1460,30 @@ async function saveCurrentRoute(state) {
     setEditorStatus(state, 'Route save cancelled. Provide a name to save the route.');
     return;
   }
+
+  const sessionUser = getLoggedInUser();
+  let contributorUsername = '';
+  let contributorName = '';
+  if (sessionUser) {
+    contributorUsername = typeof sessionUser.username === 'string' ? sessionUser.username.trim() : '';
+    const storedName = typeof sessionUser.name === 'string' ? sessionUser.name.trim() : '';
+    contributorName = storedName || contributorUsername || 'Signed-in user';
+    if (!contributorUsername) {
+      contributorUsername = contributorName;
+    }
+  } else {
+    const providedName = window.prompt('Your name (to record with this route)', '');
+    if (!providedName) {
+      setEditorStatus(state, 'Route save cancelled. Provide your name to save the route.');
+      return;
+    }
+    contributorName = providedName.trim();
+    if (!contributorName) {
+      setEditorStatus(state, 'Route save cancelled. Provide your name to save the route.');
+      return;
+    }
+    contributorUsername = contributorName;
+  }
   const provinceInput = window.prompt('Province', '');
   const cityInput = window.prompt('City or Town', '');
   const minFareInput = window.prompt('Minimum fare (ZAR)', '10');
@@ -1381,6 +1507,10 @@ async function saveCurrentRoute(state) {
     path: cloneCoordinateList(state.path),
     snappedPath: cloneCoordinateList(state.snappedPath.length ? state.snappedPath : state.path),
     variations: [],
+    addedBy: {
+      name: contributorName,
+      username: contributorUsername,
+    },
   };
 
   setEditorBusy(state, true);
@@ -1389,7 +1519,7 @@ async function saveCurrentRoute(state) {
   try {
     const response = await fetch('/api/routes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(`Save failed with status ${response.status}`);
@@ -1437,16 +1567,64 @@ function setupRegistration() {
   const successMessage = successPanel ? successPanel.querySelector('[data-registration-success-message]') : null;
   const successActions = successPanel ? successPanel.querySelector('[data-registration-success-actions]') : null;
   const successFeedback = successPanel ? successPanel.querySelector('[data-registration-feedback]') : null;
+  const authStatus = document.querySelector('[data-auth-status]');
+  const logoutButton = document.querySelector('[data-logout-button]');
+  const loginForm = document.querySelector('[data-login-form]');
+  const loginError = loginForm ? loginForm.querySelector('[data-login-error]') : null;
 
   const state = {
     ownerTaxiList: null,
   };
+
+  function updateAuthStatus(session = getAuthSession()) {
+    const activeSession = session && typeof session === 'object' ? session : null;
+    if (authStatus) {
+      if (activeSession && activeSession.user) {
+        const user = activeSession.user;
+        const username = user.username || '';
+        const nameValue = typeof user.name === 'string' && user.name.trim() ? user.name.trim() : '';
+        let summary = username || 'Signed-in user';
+        if (nameValue && (!username || nameValue.toLowerCase() !== username.toLowerCase())) {
+          summary = `${nameValue} (${username})`;
+        } else if (nameValue) {
+          summary = nameValue;
+        }
+        authStatus.textContent = `Signed in as ${summary}`;
+      } else {
+        authStatus.textContent = 'Not signed in.';
+      }
+    }
+    if (logoutButton) {
+      logoutButton.hidden = !(activeSession && activeSession.user);
+      logoutButton.disabled = false;
+    }
+    if (loginForm) {
+      loginForm.hidden = Boolean(activeSession && activeSession.user);
+    }
+    if (activeSession && loginError) {
+      loginError.hidden = true;
+      loginError.textContent = '';
+    }
+  }
+
+  function clearLoginError() {
+    if (!loginError) return;
+    loginError.hidden = true;
+    loginError.textContent = '';
+  }
+
+  function showLoginError(message) {
+    if (!loginError) return;
+    loginError.hidden = false;
+    loginError.textContent = message;
+  }
 
   function clearError() {
     if (errorElement) {
       errorElement.hidden = true;
       errorElement.textContent = '';
     }
+    clearLoginError();
   }
 
   function showError(message) {
@@ -1489,6 +1667,102 @@ function setupRegistration() {
     if (typeof successPanel.focus === 'function') {
       successPanel.focus({ preventScroll: true });
     }
+  }
+
+  updateAuthStatus();
+
+  if (!form.dataset.authListenerBound) {
+    document.addEventListener('authchange', event => {
+      const session = event && event.detail ? event.detail.session : null;
+      updateAuthStatus(session);
+    });
+    form.dataset.authListenerBound = 'true';
+  }
+
+  if (logoutButton && !logoutButton.dataset.logoutBound) {
+    logoutButton.addEventListener('click', () => {
+      logoutButton.disabled = true;
+      fetch('/api/users/logout', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+        },
+      })
+        .catch(() => null)
+        .finally(() => {
+          clearAuthSession();
+          logoutButton.disabled = false;
+          showSuccess('You have signed out. Sign in again below to keep contributing routes.', []);
+        });
+    });
+    logoutButton.dataset.logoutBound = 'true';
+  }
+
+  if (loginForm && !loginForm.dataset.loginBound) {
+    loginForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      clearError();
+      resetSuccessPanel();
+
+      const loginData = new FormData(loginForm);
+      const username = (loginData.get('username') || '').trim();
+      const passwordRaw = loginData.get('password');
+      const passwordValue = typeof passwordRaw === 'string' ? passwordRaw : '';
+
+      if (!username) {
+        showLoginError('Enter your username to sign in.');
+        return;
+      }
+      if (!passwordValue) {
+        showLoginError('Enter your password to sign in.');
+        return;
+      }
+
+      const submit = loginForm.querySelector('button[type="submit"]');
+      let originalLabel = '';
+      if (submit) {
+        originalLabel = submit.textContent;
+        submit.disabled = true;
+        submit.textContent = 'Signing in…';
+      }
+
+      try {
+        const response = await fetch('/api/users/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password: passwordValue }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          const message = data && data.message ? data.message : 'Unable to sign in. Check your details and try again.';
+          showLoginError(message);
+          return;
+        }
+        const data = await response.json();
+        if (!data || !data.token || !data.user) {
+          showLoginError('Unexpected response from the server. Please try again.');
+          return;
+        }
+        setAuthSession({ token: data.token, user: data.user });
+        loginForm.reset();
+        const actions = [];
+        const routeAdderLink = document.createElement('a');
+        routeAdderLink.href = '/route-adder.html';
+        routeAdderLink.className = 'cta';
+        routeAdderLink.textContent = 'Open Route Adder';
+        actions.push(routeAdderLink);
+        showSuccess(`Welcome back ${data.user.name || data.user.username}! You're signed in.`, actions);
+      } catch (error) {
+        console.error('Login failed', error);
+        showLoginError('Unable to sign in right now. Please try again shortly.');
+      } finally {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = originalLabel || 'Sign in';
+        }
+      }
+    });
+    loginForm.dataset.loginBound = 'true';
   }
 
   function createOwnerTaxiFieldset(initial = {}) {
@@ -1637,6 +1911,15 @@ function setupRegistration() {
       return;
     }
 
+    if (role === 'route-adder') {
+      const info = document.createElement('p');
+      info.className = 'registration-feedback';
+      info.textContent =
+        'Once registered and signed in, every saved route from the Route Adder will automatically tag your username.';
+      dynamicContainer.appendChild(info);
+      return;
+    }
+
     const info = document.createElement('p');
     info.className = 'registration-feedback';
     info.textContent =
@@ -1647,9 +1930,14 @@ function setupRegistration() {
   function renderDriverSuccessPanel() {
     const profile = getDriverProfile();
     if (!profile) return;
+    const username = typeof profile.username === 'string' ? profile.username : '';
+    const nameLabel = typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
+    const identity = username && (!nameLabel || nameLabel.toLowerCase() !== username.toLowerCase())
+      ? `${nameLabel || 'Taxi driver'} (${username})`
+      : nameLabel || username || 'Taxi driver';
     const message = profile.sharingEnabled
-      ? `${profile.name || 'Taxi driver'}, your live location is active. Refresh it whenever you need to update the Admin Route Finder.`
-      : `Thanks ${profile.name || 'Taxi driver'}! Enable live location to appear on the Admin Route Finder.`;
+      ? `${identity}, your live location is active. Refresh it whenever you need to update the Admin Route Finder.`
+      : `Thanks ${identity}! Enable live location to appear on the Admin Route Finder.`;
     const actions = [];
 
     const enableButton = document.createElement('button');
@@ -1692,10 +1980,15 @@ function setupRegistration() {
     const profile = getOwnerProfile();
     if (!profile) return;
     const total = Array.isArray(profile.taxis) ? profile.taxis.length : 0;
+    const username = typeof profile.username === 'string' ? profile.username : '';
+    const nameLabel = typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
+    const identity = username && (!nameLabel || nameLabel.toLowerCase() !== username.toLowerCase())
+      ? `${nameLabel || 'Taxi owner'} (${username})`
+      : nameLabel || username || 'Taxi owner';
     const message =
       total > 0
-        ? `${profile.name || 'Taxi owner'}, ${total} taxi${total === 1 ? '' : 's'} are ready to display on the Admin Route Finder.`
-        : `${profile.name || 'Taxi owner'}, your profile is saved. Add taxis to manage their live visibility.`;
+        ? `${identity}, ${total} taxi${total === 1 ? '' : 's'} are ready to display on the Admin Route Finder.`
+        : `${identity}, your profile is saved. Add taxis to manage their live visibility.`;
     const actions = [];
 
     const adminLink = document.createElement('a');
@@ -1707,8 +2000,17 @@ function setupRegistration() {
     showSuccess(message, actions);
   }
 
-  function renderGenericSuccess(role, name) {
-    const message = `Thanks ${name || 'for registering'}! We'll follow up with activation details for the ${role} workspace.`;
+  function renderGenericSuccess(role, name, user) {
+    const normalizedRole = typeof role === 'string' && role.trim() ? role.trim() : 'account';
+    const readableRole = normalizedRole.replace(/[-_]+/g, ' ');
+    const username = user && typeof user.username === 'string' ? user.username : '';
+    const nameLabel = typeof name === 'string' && name.trim() ? name.trim() : '';
+    const identity = username && (!nameLabel || nameLabel.toLowerCase() !== username.toLowerCase())
+      ? `${nameLabel || 'for registering'} (${username})`
+      : nameLabel || username || 'for registering';
+    const message = `Thanks ${identity}! We'll follow up with activation details for the ${readableRole} workspace. ${
+      username ? `You're signed in as ${username}.` : 'You are signed in and ready to explore the tools.'
+    }`;
     const actions = [];
     const adminLink = document.createElement('a');
     adminLink.href = '/admin-route-finder.html';
@@ -1730,67 +2032,150 @@ function setupRegistration() {
     dynamicContainer.innerHTML = '';
   }
 
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault();
     clearError();
     resetSuccessPanel();
 
-    const formData = new FormData(form);
-    const role = (formData.get('role') || 'collector').toString();
-    const name = (formData.get('name') || '').trim();
-    if (!name) {
-      showError('Please provide your full name so we can personalise your workspace.');
-      return;
+    const submitButton = form.querySelector('button[type="submit"]');
+    let originalSubmitLabel = '';
+    if (submitButton) {
+      originalSubmitLabel = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Submitting…';
     }
 
-    const email = (formData.get('email') || '').trim();
-    const phone = (formData.get('phone') || '').trim();
-    const routes = (formData.get('routes') || '').trim();
-
-    if (role === 'driver') {
-      const vehicle = (formData.get('driverVehicle') || '').trim();
-      const profile = {
-        id: generateId('driver'),
-        role,
-        name,
-        email,
-        phone,
-        routes,
-        vehicle,
-        sharingEnabled: false,
-        lastKnownLocation: null,
-        timestamp: Date.now(),
-      };
-      setDriverProfile(profile);
-      renderDriverSuccessPanel();
-    } else if (role === 'owner') {
-      const taxis = collectOwnerTaxiEntries();
-      if (!taxis.length) {
-        showError('Add at least one taxi so that your fleet can appear on the Admin Route Finder.');
+    try {
+      const formData = new FormData(form);
+      const role = (formData.get('role') || 'collector').toString();
+      const username = (formData.get('username') || '').trim();
+      if (!username) {
+        showError('Choose a username to manage your account.');
         return;
       }
-      const profile = {
-        id: generateId('owner'),
+      if (username.length < 3) {
+        showError('Usernames need at least 3 characters.');
+        return;
+      }
+
+      const passwordRaw = formData.get('password');
+      const passwordValue = typeof passwordRaw === 'string' ? passwordRaw : '';
+      if (!passwordValue || passwordValue.length < 6) {
+        showError('Passwords must be at least 6 characters long.');
+        return;
+      }
+
+      const name = (formData.get('name') || '').trim();
+      if (!name) {
+        showError('Please provide your full name so we can personalise your workspace.');
+        return;
+      }
+
+      const email = (formData.get('email') || '').trim();
+      const phone = (formData.get('phone') || '').trim();
+      const routes = (formData.get('routes') || '').trim();
+
+      let vehicle = '';
+      let ownerTaxis = [];
+      const metadata = {};
+
+      if (role === 'driver') {
+        vehicle = (formData.get('driverVehicle') || '').trim();
+        if (vehicle) {
+          metadata.vehicle = vehicle;
+        }
+      } else if (role === 'owner') {
+        ownerTaxis = collectOwnerTaxiEntries();
+        if (!ownerTaxis.length) {
+          showError('Add at least one taxi so that your fleet can appear on the Admin Route Finder.');
+          return;
+        }
+        metadata.taxis = ownerTaxis;
+      }
+
+      const payload = {
+        username,
+        password: passwordValue,
         role,
         name,
         email,
         phone,
         routes,
-        taxis,
-        timestamp: Date.now(),
+        metadata,
       };
-      setOwnerProfile(profile);
-      renderOwnerSuccessPanel();
-    } else {
-      renderGenericSuccess(role, name);
-    }
 
-    form.reset();
-    if (roleSelect) {
-      roleSelect.value = role;
-      renderRoleFields(role);
-    } else {
-      renderRoleFields('collector');
+      const response = await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message = data && data.message ? data.message : 'We could not complete your registration right now.';
+        showError(message);
+        return;
+      }
+
+      const data = await response.json();
+      if (!data || !data.token || !data.user) {
+        showError('Unexpected response from the server. Please try again.');
+        return;
+      }
+
+      setAuthSession({ token: data.token, user: data.user });
+
+      if (role === 'driver') {
+        const profile = {
+          id: generateId('driver'),
+          role,
+          name,
+          email,
+          phone,
+          routes,
+          vehicle,
+          sharingEnabled: false,
+          lastKnownLocation: null,
+          timestamp: Date.now(),
+          username: data.user.username,
+          accountId: data.user.id,
+        };
+        setDriverProfile(profile);
+        renderDriverSuccessPanel();
+      } else if (role === 'owner') {
+        const profile = {
+          id: generateId('owner'),
+          role,
+          name,
+          email,
+          phone,
+          routes,
+          taxis: ownerTaxis,
+          timestamp: Date.now(),
+          username: data.user.username,
+          accountId: data.user.id,
+        };
+        setOwnerProfile(profile);
+        renderOwnerSuccessPanel();
+      } else {
+        renderGenericSuccess(role, name, data.user);
+      }
+
+      form.reset();
+      if (roleSelect) {
+        roleSelect.value = role;
+        renderRoleFields(role);
+      } else {
+        renderRoleFields('collector');
+      }
+    } catch (error) {
+      console.error('Failed to submit registration', error);
+      showError('We could not submit your registration right now. Please try again.');
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalSubmitLabel || 'Submit registration';
+      }
     }
   });
 
@@ -2134,6 +2519,14 @@ function normalizeRouteRecord(rawRoute) {
       }
     : null;
   const frequency = Number(rawRoute.frequencyPerHour);
+  const addedBy = rawRoute.addedBy && typeof rawRoute.addedBy === 'object'
+    ? {
+        name: typeof rawRoute.addedBy.name === 'string' ? rawRoute.addedBy.name : '',
+        username: typeof rawRoute.addedBy.username === 'string' ? rawRoute.addedBy.username : '',
+      }
+    : { name: '', username: '' };
+  const createdAt = typeof rawRoute.createdAt === 'string' ? rawRoute.createdAt : '';
+  const updatedAt = typeof rawRoute.updatedAt === 'string' ? rawRoute.updatedAt : '';
 
   return {
     ...rawRoute,
@@ -2149,6 +2542,9 @@ function normalizeRouteRecord(rawRoute) {
     nameLower: name.toLowerCase(),
     provinceLower: province.toLowerCase(),
     cityLower: city.toLowerCase(),
+    addedBy,
+    createdAt,
+    updatedAt,
   };
 }
 
@@ -2245,6 +2641,16 @@ function renderRouteDetails(route, options = {}) {
   const gestureText = route.gesture ? escapeHtml(route.gesture) : 'Not specified';
   const stopsMarkup = buildStopsMarkup(route.stops);
   const variationsCount = Array.isArray(route.variations) ? route.variations.length : 0;
+  const contributor = route.addedBy && (route.addedBy.name || route.addedBy.username)
+    ? route.addedBy.name || route.addedBy.username
+    : '';
+  const contributorMarkup = contributor ? `<li><strong>Added by:</strong> ${escapeHtml(contributor)}</li>` : '';
+  const createdAtText = formatTimestamp(route.createdAt);
+  const updatedAtText = formatTimestamp(route.updatedAt);
+  const createdAtMarkup = createdAtText ? `<li><strong>Captured:</strong> ${escapeHtml(createdAtText)}</li>` : '';
+  const updatedAtMarkup = updatedAtText && updatedAtText !== createdAtText
+    ? `<li><strong>Updated:</strong> ${escapeHtml(updatedAtText)}</li>`
+    : '';
 
   container.innerHTML = `
     <h2>${escapeHtml(route.name)}</h2>
@@ -2256,6 +2662,9 @@ function renderRouteDetails(route, options = {}) {
       <li><strong>Frequency:</strong> ${frequencyMarkup}</li>
       <li><strong>Service window:</strong> ${serviceWindow}</li>
       <li><strong>Variations:</strong> ${variationsCount}</li>
+      ${contributorMarkup}
+      ${createdAtMarkup}
+      ${updatedAtMarkup}
     </ul>
     ${stopsMarkup}
   `;
@@ -2343,6 +2752,17 @@ function formatServiceWindow(firstLoad, lastLoad) {
   if (start) return `${start} onward`;
   if (end) return `Until ${end}`;
   return 'Not recorded';
+}
+
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  try {
+    return date.toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' });
+  } catch (error) {
+    return date.toISOString();
+  }
 }
 
 function escapeHtml(value) {

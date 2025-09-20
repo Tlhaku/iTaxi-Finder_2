@@ -29,6 +29,13 @@
       { "lat": -26.20152, "lng": 28.04712 },
       { "lat": -26.19835, "lng": 28.0458 }
     ],
-    "variations": []
+    "variations": [],
+    "addedBy": {
+      "username": "system",
+      "name": "System Import"
+    },
+    "addedByUserId": null,
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
   }
 ]

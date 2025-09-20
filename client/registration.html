@@ -36,6 +36,10 @@
     <h1 id="registration-heading">Join the iTaxi-Finder network</h1>
     <p>Register your role to unlock tools tailored for collectors, drivers, depot owners, and partners. We capture just enough
       information to verify your business, route alignment, and preferred contact channels before activating your workspace.</p>
+    <section class="registration-account" aria-live="polite">
+      <p class="registration-account__status" data-auth-status>Not signed in.</p>
+      <button type="button" class="cta secondary registration-account__signout" data-logout-button hidden>Sign out</button>
+    </section>
     <form class="registration-form" data-static-form data-registration-form>
       <label>
         Select your role
@@ -46,7 +50,16 @@
           <option value="depot">Taxi Rank Depot / Depot Shop</option>
           <option value="subscriber">Monthly Subscriber</option>
           <option value="owner">Taxi Owner</option>
+          <option value="route-adder">Route Adder</option>
         </select>
+      </label>
+      <label>
+        Username
+        <input type="text" name="username" placeholder="Choose a username" autocomplete="username" minlength="3" required />
+      </label>
+      <label>
+        Account password
+        <input type="password" name="password" placeholder="Create a password" autocomplete="new-password" minlength="6" required />
       </label>
       <label>
         Full name
@@ -69,6 +82,21 @@
       <div class="registration-owner-actions" data-registration-actions>
         <button type="submit" class="cta">Submit registration</button>
       </div>
+    </form>
+    <form class="registration-login" data-static-form data-login-form>
+      <fieldset>
+        <legend>Already registered? Sign in</legend>
+        <label>
+          Username
+          <input type="text" name="username" autocomplete="username" minlength="3" required />
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" autocomplete="current-password" minlength="6" required />
+        </label>
+        <p class="registration-error" data-login-error hidden role="alert"></p>
+        <button type="submit" class="cta secondary">Sign in</button>
+      </fieldset>
     </form>
     <section
       id="registration-success"
