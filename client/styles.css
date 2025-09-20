@@ -190,7 +190,7 @@ body.map-background {
   transform: translateX(-50%);
   z-index: 900;
   background: rgba(255, 255, 255, 0.9);
-  padding: 8px 16px;
+  padding: 10px 48px 10px 20px;
   border-radius: 999px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
   display: flex;
@@ -509,6 +509,60 @@ body.map-background {
 
 .overlay-drag-handle--floating::before {
   width: 72px;
+}
+
+.overlay-body {
+  display: contents;
+}
+
+.overlay-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  z-index: 20;
+}
+
+.overlay-toggle:hover,
+.overlay-toggle:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.14);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22);
+}
+
+.overlay-toggle__icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.overlay-panel.is-minimized {
+  padding-bottom: 18px;
+}
+
+.overlay-panel.is-minimized .overlay-drag-handle {
+  margin-bottom: 4px;
+}
+
+.overlay-panel.is-minimized [data-overlay-body] {
+  display: none !important;
+}
+
+.overlay-panel.is-minimized .overlay-toggle {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
 }
 
 .route-finder-panel.overlay-panel {
@@ -1248,7 +1302,85 @@ body.page-route-adder #map::after {
 
 }
 
+@media (max-width: 640px) {
+  :root {
+    --map-control-offset: 64px;
+    --overlay-panel-top: 88px;
+    --overlay-panel-max-height: calc(100vh - 120px);
+  }
+
+  .overlay-panel,
+  .overlay-card {
+    border-radius: 14px;
+  }
+
+  #search {
+    gap: 8px;
+    padding: 8px 44px 8px 16px;
+  }
+
+  #search input {
+    font-size: 0.9rem;
+  }
+
+  .route-finder-panel {
+    left: 12px;
+    width: min(320px, calc(100% - 24px));
+    padding: 20px 18px;
+  }
+
+  .route-adder-saved {
+    left: 12px;
+    width: min(300px, calc(100% - 24px));
+    padding: 18px 18px;
+  }
+
+  #editor-tools {
+    width: min(240px, calc(100% - 48px));
+    padding: 16px 18px;
+    bottom: 18px;
+  }
+
+  #editor-tools button {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+
+  .content-panel {
+    margin: 88px 16px 24px;
+    padding: 26px 20px;
+  }
+
+  body.map-background .content-panel {
+    width: min(320px, calc(100% - 32px));
+    padding: 24px 20px;
+  }
+
+  .admin-panel {
+    width: min(320px, calc(100% - 24px));
+    padding: 22px 20px;
+  }
+
+  .community-grid a {
+    flex: 1 1 calc(50% - 10px);
+  }
+
+  .overlay-toggle {
+    width: 30px;
+    height: 30px;
+    top: 10px;
+    right: 10px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  }
+}
+
 @media (max-width: 480px) {
+  :root {
+    --map-control-offset: 60px;
+    --overlay-panel-top: 80px;
+    --overlay-panel-max-height: calc(100vh - 112px);
+  }
+
   #topbar {
     padding: 0 12px;
   }
@@ -1268,18 +1400,24 @@ body.page-route-adder #map::after {
 
   #editor-tools {
     gap: 10px;
+    width: min(220px, calc(100% - 28px));
+    padding: 14px 16px;
+    bottom: 14px;
   }
 
   #editor-tools button {
     flex: 1 1 100%;
+    padding: 9px 12px;
   }
 
   body.map-background .content-panel {
-    padding: 28px 20px;
+    width: min(300px, calc(100% - 28px));
+    padding: 22px 18px;
   }
 
   .route-adder-saved {
-    padding: 18px 18px;
+    width: min(280px, calc(100% - 20px));
+    padding: 16px 16px;
   }
 
   .route-adder-saved__list {
@@ -1287,11 +1425,34 @@ body.page-route-adder #map::after {
   }
 
   .admin-panel {
-    padding: 22px 20px;
+    width: min(300px, calc(100% - 20px));
+    padding: 20px 18px;
   }
 
   .admin-taxi__actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .route-finder-panel {
+    left: 10px;
+    width: min(300px, calc(100% - 20px));
+    padding: 18px 16px;
+  }
+
+  #search {
+    left: 12px;
+    width: calc(100% - 24px);
+    padding: 8px 40px 8px 14px;
+  }
+
+  .overlay-panel,
+  .overlay-card {
+    border-radius: 12px;
+  }
+
+  .overlay-toggle {
+    top: 8px;
+    right: 8px;
   }
 }
