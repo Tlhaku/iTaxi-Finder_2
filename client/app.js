@@ -456,99 +456,235 @@ function setupResponsiveNavigation() {
   }
 }
 
+function getOverlayLabel(overlay) {
+  if (!overlay) return 'panel';
+
+  const explicitLabel = overlay.getAttribute('data-overlay-label');
+  if (explicitLabel) return explicitLabel.trim();
+
+  const ariaLabel = overlay.getAttribute('aria-label');
+  if (ariaLabel) return ariaLabel.trim();
+
+  const labelledby = overlay.getAttribute('aria-labelledby');
+  if (labelledby) {
+    const ids = labelledby.split(/\s+/).filter(Boolean);
+    for (const id of ids) {
+      const element = document.getElementById(id);
+      if (element && element.textContent) {
+        const text = element.textContent.trim();
+        if (text) return text;
+      }
+    }
+  }
+
+  const heading = overlay.querySelector('h1, h2, h3, legend, [role="heading"]');
+  if (heading && heading.textContent) {
+    return heading.textContent.trim();
+  }
+
+  if (overlay.id) {
+    return overlay.id.replace(/[-_]+/g, ' ').trim();
+  }
+
+  return 'panel';
+}
+
+function setOverlayMinimizedState({ overlay, toggle, srText, icon, label }, minimized) {
+  overlay.classList.toggle('is-minimized', minimized);
+  overlay.dataset.overlayMinimized = minimized ? 'true' : 'false';
+  toggle.setAttribute('aria-expanded', minimized ? 'false' : 'true');
+  srText.textContent = minimized ? `Restore ${label}` : `Minimise ${label}`;
+  toggle.setAttribute('aria-label', minimized ? `Restore ${label}` : `Minimise ${label}`);
+  icon.textContent = minimized ? '+' : '–';
+
+  const mapElement = document.getElementById('map');
+  if (mapElement) {
+    repositionMapControls(mapElement);
+  }
+}
+
+function enhanceOverlayChrome(overlay) {
+  if (!overlay || overlay.dataset.overlayChromeBound === 'true') return;
+
+  const handle = overlay.querySelector('[data-drag-handle]');
+  const label = getOverlayLabel(overlay);
+
+  let toggle = overlay.querySelector('[data-overlay-toggle]');
+  if (!toggle) {
+    toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'overlay-toggle';
+    toggle.setAttribute('data-overlay-toggle', '');
+    overlay.insertBefore(toggle, overlay.firstChild);
+  } else {
+    toggle.classList.add('overlay-toggle');
+  }
+
+  let srText = toggle.querySelector('.visually-hidden');
+  if (!srText) {
+    srText = document.createElement('span');
+    srText.className = 'visually-hidden';
+    toggle.appendChild(srText);
+  }
+
+  let icon = toggle.querySelector('.overlay-toggle__icon');
+  if (!icon) {
+    icon = document.createElement('span');
+    icon.className = 'overlay-toggle__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    toggle.appendChild(icon);
+  }
+
+  srText.textContent = `Minimise ${label}`;
+  icon.textContent = '–';
+  toggle.setAttribute('aria-expanded', 'true');
+  toggle.setAttribute('aria-label', `Minimise ${label}`);
+
+  let body = overlay.querySelector('[data-overlay-body]');
+  if (!body) {
+    body = document.createElement('div');
+    body.className = 'overlay-body';
+    body.setAttribute('data-overlay-body', '');
+  }
+
+  const childrenToWrap = Array.from(overlay.children).filter(child => {
+    if (child === toggle) return false;
+    if (child === body) return false;
+    if (handle && child === handle) return false;
+    return true;
+  });
+
+  if (childrenToWrap.length) {
+    childrenToWrap.forEach(child => body.appendChild(child));
+  }
+
+  if (!body.parentElement) {
+    if (handle && handle.parentElement === overlay && handle.nextSibling) {
+      overlay.insertBefore(body, handle.nextSibling);
+    } else if (handle && handle.parentElement === overlay) {
+      overlay.appendChild(body);
+    } else {
+      overlay.appendChild(body);
+    }
+  }
+
+  const bindings = { overlay, toggle, srText, icon, label };
+  toggle.addEventListener('click', event => {
+    event.stopPropagation();
+    const minimized = overlay.dataset.overlayMinimized === 'true';
+    setOverlayMinimizedState(bindings, !minimized);
+  });
+
+  toggle.addEventListener('pointerdown', event => {
+    event.stopPropagation();
+  });
+
+  overlay.dataset.overlayChromeBound = 'true';
+  overlay.dataset.overlayMinimized = 'false';
+}
+
+function bindOverlayDragging(overlay) {
+  if (!overlay || overlay.dataset.draggableBound === 'true') return;
+
+  const handle = overlay.querySelector('[data-drag-handle]') || overlay;
+  if (!handle) return;
+
+  const handlePointerDown = event => {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+
+    if (event.target && event.target.closest('[data-overlay-toggle]')) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const rect = overlay.getBoundingClientRect();
+    if (!overlay.dataset.dragConverted) {
+      overlay.dataset.dragConverted = 'true';
+      overlay.style.left = `${rect.left}px`;
+      overlay.style.top = `${rect.top}px`;
+      overlay.style.right = 'auto';
+      overlay.style.bottom = 'auto';
+      overlay.style.transform = 'none';
+    }
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = parseFloat(overlay.style.left) || rect.left;
+    const startTop = parseFloat(overlay.style.top) || rect.top;
+    const width = rect.width;
+    const height = rect.height;
+    const pointerId = event.pointerId;
+
+    const updatePosition = moveEvent => {
+      if (moveEvent.pointerId !== pointerId) return;
+      moveEvent.preventDefault();
+
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
+      const margin = 12;
+
+      let nextLeft = startLeft + deltaX;
+      let nextTop = startTop + deltaY;
+
+      const minLeft = margin;
+      const minTop = margin;
+      const maxLeft = Math.max(minLeft, viewportWidth - width - margin);
+      const maxTop = Math.max(minTop, viewportHeight - height - margin);
+
+      nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
+      nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
+
+      overlay.style.left = `${Math.round(nextLeft)}px`;
+      overlay.style.top = `${Math.round(nextTop)}px`;
+    };
+
+    const endDrag = () => {
+      if (typeof handle.releasePointerCapture === 'function') {
+        try {
+          handle.releasePointerCapture(pointerId);
+        } catch (error) {
+          // no-op
+        }
+      }
+      handle.removeEventListener('pointermove', updatePosition);
+      handle.removeEventListener('pointerup', endDrag);
+      handle.removeEventListener('pointercancel', endDrag);
+
+      const mapElement = document.getElementById('map');
+      if (mapElement) {
+        repositionMapControls(mapElement);
+      }
+    };
+
+    if (typeof handle.setPointerCapture === 'function') {
+      try {
+        handle.setPointerCapture(pointerId);
+      } catch (error) {
+        // ignore capture errors
+      }
+    }
+
+    handle.addEventListener('pointermove', updatePosition);
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+  };
+
+  handle.style.cursor = 'move';
+  handle.style.touchAction = 'none';
+  handle.addEventListener('pointerdown', handlePointerDown);
+  overlay.dataset.draggableBound = 'true';
+}
+
 function setupDraggableOverlays() {
   const overlays = document.querySelectorAll('[data-draggable-overlay]');
   overlays.forEach(overlay => {
-    if (!overlay || overlay.dataset.draggableBound === 'true') return;
-
-    const handle = overlay.querySelector('[data-drag-handle]') || overlay;
-    if (!handle) return;
-
-    const handlePointerDown = event => {
-      if (event.pointerType === 'mouse' && event.button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-
-      const rect = overlay.getBoundingClientRect();
-      if (!overlay.dataset.dragConverted) {
-        overlay.dataset.dragConverted = 'true';
-        overlay.style.left = `${rect.left}px`;
-        overlay.style.top = `${rect.top}px`;
-        overlay.style.right = 'auto';
-        overlay.style.bottom = 'auto';
-        overlay.style.transform = 'none';
-      }
-
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const startLeft = parseFloat(overlay.style.left) || rect.left;
-      const startTop = parseFloat(overlay.style.top) || rect.top;
-      const width = rect.width;
-      const height = rect.height;
-      const pointerId = event.pointerId;
-
-      const updatePosition = moveEvent => {
-        if (moveEvent.pointerId !== pointerId) return;
-        moveEvent.preventDefault();
-
-        const deltaX = moveEvent.clientX - startX;
-        const deltaY = moveEvent.clientY - startY;
-        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
-        const margin = 12;
-
-        let nextLeft = startLeft + deltaX;
-        let nextTop = startTop + deltaY;
-
-        const minLeft = margin;
-        const minTop = margin;
-        const maxLeft = Math.max(minLeft, viewportWidth - width - margin);
-        const maxTop = Math.max(minTop, viewportHeight - height - margin);
-
-        nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
-        nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
-
-        overlay.style.left = `${Math.round(nextLeft)}px`;
-        overlay.style.top = `${Math.round(nextTop)}px`;
-      };
-
-      const endDrag = () => {
-        if (typeof handle.releasePointerCapture === 'function') {
-          try {
-            handle.releasePointerCapture(pointerId);
-          } catch (error) {
-            // no-op
-          }
-        }
-        handle.removeEventListener('pointermove', updatePosition);
-        handle.removeEventListener('pointerup', endDrag);
-        handle.removeEventListener('pointercancel', endDrag);
-
-        const mapElement = document.getElementById('map');
-        if (mapElement) {
-          repositionMapControls(mapElement);
-        }
-      };
-
-      if (typeof handle.setPointerCapture === 'function') {
-        try {
-          handle.setPointerCapture(pointerId);
-        } catch (error) {
-          // ignore capture errors
-        }
-      }
-
-      handle.addEventListener('pointermove', updatePosition);
-      handle.addEventListener('pointerup', endDrag);
-      handle.addEventListener('pointercancel', endDrag);
-    };
-
-    handle.style.cursor = 'move';
-    handle.style.touchAction = 'none';
-    handle.addEventListener('pointerdown', handlePointerDown);
-    overlay.dataset.draggableBound = 'true';
+    enhanceOverlayChrome(overlay);
+    bindOverlayDragging(overlay);
   });
 }
 
