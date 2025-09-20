@@ -2,6 +2,7 @@
   --map-control-offset: 72px;
   --overlay-panel-top: 108px;
   --overlay-panel-max-height: calc(100vh - 148px);
+  --overlay-minimized-height: 72px;
 }
 
 html, body {
@@ -472,6 +473,7 @@ body.map-background {
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
   backdrop-filter: blur(6px);
+  box-sizing: border-box;
 }
 
 .overlay-drag-handle {
@@ -549,11 +551,32 @@ body.map-background {
 }
 
 .overlay-panel.is-minimized {
-  padding-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  min-height: var(--overlay-minimized-height);
+  height: var(--overlay-minimized-height);
+  overflow: hidden;
+  flex-wrap: nowrap;
 }
 
 .overlay-panel.is-minimized .overlay-drag-handle {
-  margin-bottom: 4px;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 18px;
+  margin: 0;
+}
+
+.overlay-panel.is-minimized .overlay-drag-handle::before {
+  width: 100%;
+}
+
+.overlay-panel.is-minimized .overlay-drag-handle--floating {
+  position: static;
+  transform: none;
+  top: auto;
+  left: auto;
 }
 
 .overlay-panel.is-minimized [data-overlay-body] {
@@ -561,8 +584,27 @@ body.map-background {
 }
 
 .overlay-panel.is-minimized .overlay-toggle {
+  position: static;
+  margin-left: auto;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  flex: 0 0 auto;
+}
+
+.overlay-panel__summary {
+  display: none;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overlay-panel.is-minimized .overlay-panel__summary {
+  display: block;
 }
 
 .route-finder-panel.overlay-panel {
@@ -1307,6 +1349,7 @@ body.page-route-adder #map::after {
     --map-control-offset: 64px;
     --overlay-panel-top: 88px;
     --overlay-panel-max-height: calc(100vh - 120px);
+    --overlay-minimized-height: 64px;
   }
 
   .overlay-panel,
@@ -1379,6 +1422,7 @@ body.page-route-adder #map::after {
     --map-control-offset: 60px;
     --overlay-panel-top: 80px;
     --overlay-panel-max-height: calc(100vh - 112px);
+    --overlay-minimized-height: 58px;
   }
 
   #topbar {
