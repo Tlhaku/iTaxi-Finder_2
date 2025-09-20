@@ -2,6 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import url from 'url';
+import crypto from 'crypto';
 
 const fsp = fs.promises;
 
@@ -19,11 +20,24 @@ try {
 const PORT = process.env.PORT || 3000;
 
 const routesPath = path.join(process.cwd(), 'data', 'routes.json');
+const usersPath = path.join(process.cwd(), 'data', 'users.json');
+
 let routes = [];
+let users = [];
+const sessions = new Map();
 try {
   routes = JSON.parse(fs.readFileSync(routesPath, 'utf8'));
 } catch (e) {
   console.warn('No routes data, using empty list');
+}
+try {
+  users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+  if (!Array.isArray(users)) {
+    users = [];
+  }
+} catch (e) {
+  console.warn('No users data, starting with an empty user list');
+  users = [];
 }
 
 function sendJson(res, data, status = 200) {
@@ -46,6 +60,202 @@ function serveStatic(res, filePath) {
     res.writeHead(200, { 'Content-Type': type });
     res.end(data);
   });
+}
+
+function persistRoutes() {
+  return fsp.writeFile(routesPath, JSON.stringify(routes, null, 2));
+}
+
+function persistUsers() {
+  return fsp.writeFile(usersPath, JSON.stringify(users, null, 2));
+}
+
+const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_KEY_LENGTH = 64;
+const PASSWORD_DIGEST = 'sha512';
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, PASSWORD_KEY_LENGTH, PASSWORD_DIGEST);
+  return {
+    salt,
+    hash: derived.toString('hex'),
+    iterations: PASSWORD_ITERATIONS,
+    keyLength: PASSWORD_KEY_LENGTH,
+    digest: PASSWORD_DIGEST,
+  };
+}
+
+function verifyPassword(password, user) {
+  if (!user || !password || typeof password !== 'string') {
+    return false;
+  }
+  const {
+    passwordSalt: salt,
+    passwordHash: hash,
+    passwordIterations: iterations = PASSWORD_ITERATIONS,
+    passwordKeyLength: keyLength = PASSWORD_KEY_LENGTH,
+    passwordDigest: digest = PASSWORD_DIGEST,
+  } = user;
+  if (!salt || !hash) {
+    return false;
+  }
+  try {
+    const derived = crypto.pbkdf2Sync(password, salt, iterations, keyLength, digest);
+    const storedBuffer = Buffer.from(hash, 'hex');
+    if (derived.length !== storedBuffer.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(derived, storedBuffer);
+  } catch (error) {
+    console.error('Failed to verify password', error);
+    return false;
+  }
+}
+
+function sanitizeUserRecord(user) {
+  if (!user) return null;
+  const metadata = user.metadata && typeof user.metadata === 'object' ? user.metadata : {};
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    name: user.name || '',
+    email: user.email || '',
+    phone: user.phone || '',
+    routes: user.routes || '',
+    metadata,
+    createdAt: user.createdAt || null,
+    updatedAt: user.updatedAt || null,
+    lastLoginAt: user.lastLoginAt || null,
+  };
+}
+
+function getNextUserId() {
+  return users.reduce((max, user) => Math.max(max, Number(user.id) || 0), 0) + 1;
+}
+
+function extractSessionToken(req) {
+  const authHeader = req.headers.authorization;
+  if (typeof authHeader === 'string' && authHeader.trim()) {
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+
+  const headerToken = req.headers['x-session-token'];
+  if (typeof headerToken === 'string' && headerToken.trim()) {
+    return headerToken.trim();
+  }
+
+  return null;
+}
+
+function getSession(req) {
+  const token = extractSessionToken(req);
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session) return null;
+  const user = users.find(entry => entry.id === session.userId);
+  if (!user) {
+    sessions.delete(token);
+    return null;
+  }
+  return { token, user };
+}
+
+function createSession(user) {
+  const token = crypto.randomBytes(24).toString('hex');
+  sessions.set(token, {
+    token,
+    userId: user.id,
+    username: user.username,
+    createdAt: Date.now(),
+  });
+  return token;
+}
+
+function destroySession(req) {
+  const token = extractSessionToken(req);
+  if (!token) return false;
+  return sessions.delete(token);
+}
+
+function ensureString(value) {
+  return typeof value === 'string' ? value : '';
+}
+
+function truncate(value, maxLength) {
+  if (typeof value !== 'string') return '';
+  if (!Number.isFinite(maxLength) || maxLength <= 0) return value.trim();
+  return value.trim().slice(0, maxLength);
+}
+
+function sanitizeAddedBy(input, sessionUser) {
+  if (sessionUser) {
+    const username = truncate(sessionUser.username || '', 80);
+    const nameCandidate = ensureString(sessionUser.name).trim();
+    const name = truncate(nameCandidate || username, 120);
+    return {
+      username,
+      name,
+    };
+  }
+
+  if (!input) {
+    return { username: '', name: '' };
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    const value = truncate(trimmed, 120);
+    return { username: value, name: value };
+  }
+
+  const usernameCandidate = ensureString(input.username).trim();
+  const nameCandidate = ensureString(input.name).trim();
+  const username = truncate(usernameCandidate || nameCandidate, 80);
+  const name = truncate(nameCandidate || username, 120);
+
+  return {
+    username,
+    name,
+  };
+}
+
+function sanitizeMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object') {
+    return {};
+  }
+
+  if (Array.isArray(metadata)) {
+    return metadata.map(entry => (typeof entry === 'object' ? sanitizeMetadata(entry) : entry));
+  }
+
+  const result = {};
+  Object.keys(metadata).forEach(key => {
+    const value = metadata[key];
+    if (value === undefined) {
+      return;
+    }
+    if (value === null) {
+      result[key] = null;
+      return;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      result[key] = value;
+      return;
+    }
+    if (Array.isArray(value)) {
+      result[key] = value.map(item => (typeof item === 'object' ? sanitizeMetadata(item) : item));
+      return;
+    }
+    if (typeof value === 'object') {
+      result[key] = sanitizeMetadata(value);
+    }
+  });
+  return result;
 }
 
 function parseJsonBody(req) {
@@ -213,10 +423,6 @@ async function snapPathToRoads(basePath, apiKey) {
   return snapped;
 }
 
-function persistRoutes() {
-  return fsp.writeFile(routesPath, JSON.stringify(routes, null, 2));
-}
-
 function handleCreateRoute(req, res) {
   parseJsonBody(req)
     .then(payload => {
@@ -228,6 +434,11 @@ function handleCreateRoute(req, res) {
       }
 
       const nextId = routes.reduce((max, route) => Math.max(max, Number(route.routeId) || 0), 0) + 1;
+      const sessionInfo = getSession(req);
+      const sessionUser = sessionInfo ? sessionInfo.user : null;
+      const addedBy = sanitizeAddedBy(payload.addedBy, sessionUser);
+      const timestamp = new Date().toISOString();
+
       const route = {
         routeId: nextId,
         name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : `Route ${nextId}`,
@@ -244,6 +455,10 @@ function handleCreateRoute(req, res) {
         path: basePath,
         snappedPath: snappedPath.length ? snappedPath : basePath,
         variations: Array.isArray(payload.variations) ? payload.variations : [],
+        addedBy,
+        addedByUserId: sessionUser ? sessionUser.id : null,
+        createdAt: timestamp,
+        updatedAt: timestamp,
       };
 
       routes.push(route);
@@ -272,6 +487,14 @@ function handleUpdateRoute(req, res, id) {
       const target = routes[index];
       const basePath = sanitizeCoordinateList(payload.path || target.path);
       const snappedPath = sanitizeCoordinateList(payload.snappedPath || target.snappedPath || basePath);
+      const sessionInfo = getSession(req);
+      const sessionUser = sessionInfo ? sessionInfo.user : null;
+      const addedByInput = Object.prototype.hasOwnProperty.call(payload, 'addedBy')
+        ? payload.addedBy
+        : target.addedBy;
+      const addedBy = sanitizeAddedBy(addedByInput, sessionUser || null);
+      const addedByUserId = sessionUser ? sessionUser.id : target.addedByUserId || null;
+      const updatedAt = new Date().toISOString();
       routes[index] = {
         ...target,
         ...payload,
@@ -283,6 +506,9 @@ function handleUpdateRoute(req, res, id) {
         stops: sanitizeStops(payload.stops || target.stops),
         path: basePath,
         snappedPath: snappedPath.length ? snappedPath : basePath,
+        addedBy,
+        addedByUserId,
+        updatedAt,
       };
 
       persistRoutes()
@@ -348,12 +574,162 @@ async function handleSnapRequest(req, res) {
   }
 }
 
+async function handleUserRegister(req, res) {
+  let payload;
+  try {
+    payload = await parseJsonBody(req);
+  } catch (error) {
+    sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
+    return;
+  }
+
+  const username = ensureString(payload.username).trim();
+  const password = typeof payload.password === 'string' ? payload.password : '';
+  const roleInput = ensureString(payload.role).trim();
+  const role = roleInput ? roleInput.toLowerCase() : 'collector';
+  const name = ensureString(payload.name).trim();
+  const email = ensureString(payload.email).trim();
+  const phone = ensureString(payload.phone).trim();
+  const routesField = ensureString(payload.routes).trim();
+  const metadata = sanitizeMetadata(payload.metadata);
+
+  if (!username) {
+    sendJson(res, { message: 'Username is required.' }, 400);
+    return;
+  }
+
+  if (username.length < 3) {
+    sendJson(res, { message: 'Username must be at least 3 characters long.' }, 400);
+    return;
+  }
+
+  if (!password || password.length < 6) {
+    sendJson(res, { message: 'Password must be at least 6 characters long.' }, 400);
+    return;
+  }
+
+  const existing = users.find(
+    user => typeof user.username === 'string' && user.username.toLowerCase() === username.toLowerCase(),
+  );
+  if (existing) {
+    sendJson(res, { message: 'That username is already registered.' }, 409);
+    return;
+  }
+
+  const passwordData = hashPassword(password);
+  const now = new Date().toISOString();
+
+  const user = {
+    id: getNextUserId(),
+    username,
+    role,
+    name,
+    email,
+    phone,
+    routes: routesField,
+    metadata,
+    createdAt: now,
+    updatedAt: now,
+    lastLoginAt: now,
+    passwordSalt: passwordData.salt,
+    passwordHash: passwordData.hash,
+    passwordIterations: passwordData.iterations,
+    passwordKeyLength: passwordData.keyLength,
+    passwordDigest: passwordData.digest,
+  };
+
+  users.push(user);
+  persistUsers()
+    .then(() => {
+      const token = createSession(user);
+      sendJson(res, { user: sanitizeUserRecord(user), token }, 201);
+    })
+    .catch(error => {
+      console.error('Failed to persist user registration', error);
+      users = users.filter(entry => entry.id !== user.id);
+      sendJson(res, { message: 'Failed to register user. Please try again.' }, 500);
+    });
+}
+
+async function handleUserLogin(req, res) {
+  let payload;
+  try {
+    payload = await parseJsonBody(req);
+  } catch (error) {
+    sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
+    return;
+  }
+
+  const username = ensureString(payload.username).trim();
+  const password = typeof payload.password === 'string' ? payload.password : '';
+
+  if (!username || !password) {
+    sendJson(res, { message: 'Provide both username and password.' }, 400);
+    return;
+  }
+
+  const user = users.find(
+    entry => typeof entry.username === 'string' && entry.username.toLowerCase() === username.toLowerCase(),
+  );
+
+  if (!user || !verifyPassword(password, user)) {
+    sendJson(res, { message: 'Invalid username or password.' }, 401);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  user.lastLoginAt = now;
+  user.updatedAt = now;
+  persistUsers().catch(error => {
+    console.warn('Failed to persist login metadata', error);
+  });
+
+  const token = createSession(user);
+  sendJson(res, { user: sanitizeUserRecord(user), token });
+}
+
+function handleUserSession(req, res) {
+  const sessionInfo = getSession(req);
+  if (!sessionInfo) {
+    sendJson(res, { message: 'Not authenticated' }, 401);
+    return;
+  }
+
+  sendJson(res, { user: sanitizeUserRecord(sessionInfo.user) });
+}
+
+function handleUserLogout(req, res) {
+  destroySession(req);
+  res.writeHead(204);
+  res.end();
+}
+
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname || '/';
 
   if (pathname === '/config' && req.method === 'GET') {
     sendJson(res, { mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '' });
+    return;
+  }
+
+  if (pathname === '/api/users/register' && req.method === 'POST') {
+    handleUserRegister(req, res);
+    return;
+  }
+
+  if (pathname === '/api/users/login' && req.method === 'POST') {
+    handleUserLogin(req, res);
+    return;
+  }
+
+  if (pathname === '/api/users/session' && req.method === 'GET') {
+    handleUserSession(req, res);
+    return;
+  }
+
+  if (pathname === '/api/users/logout' && req.method === 'POST') {
+    handleUserLogout(req, res);
     return;
   }
 
