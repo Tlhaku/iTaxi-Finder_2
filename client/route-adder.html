@@ -28,45 +28,6 @@
     </nav>
   </div>
   <section
-    id="route-contributor-panel"
-    class="overlay-panel route-contributor"
-    aria-labelledby="route-contributor-heading"
-    data-draggable-overlay
-    data-overlay-label="Route contributor profile"
-  >
-    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
-    <h2 id="route-contributor-heading">Route contributor profile</h2>
-    <p class="route-contributor__hint">
-      Use the same username and home town you registered with so we can verify your account before saving new routes.
-    </p>
-    <form class="route-contributor__form" data-static-form data-route-contributor-form>
-      <label>
-        Custom username
-        <input
-          type="text"
-          name="contributorUsername"
-          autocomplete="username"
-          required
-          data-route-contributor-username
-        />
-      </label>
-      <label>
-        Home town
-        <input
-          type="text"
-          name="contributorHometown"
-          autocomplete="address-level2"
-          required
-          data-route-contributor-hometown
-        />
-      </label>
-      <div class="route-contributor__actions">
-        <button type="submit" class="cta secondary">Use these details</button>
-      </div>
-      <p class="route-contributor__feedback" data-route-contributor-feedback role="status" aria-live="polite"></p>
-    </form>
-  </section>
-  <section
     id="saved-routes-panel"
     class="overlay-panel route-adder-saved"
     aria-labelledby="saved-routes-heading"
