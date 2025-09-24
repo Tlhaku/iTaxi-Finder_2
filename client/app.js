@@ -977,8 +977,27 @@ function setOverlayMinimizedState({ overlay, toggle, srText, icon, label }, mini
   }
 }
 
+function resetOverlayPosition(overlay) {
+  if (!overlay) return;
+  overlay.style.left = '';
+  overlay.style.top = '';
+  overlay.style.right = '';
+  overlay.style.bottom = '';
+  overlay.style.transform = '';
+  overlay.style.position = '';
+  overlay.style.zIndex = '';
+  if (overlay.dataset) {
+    delete overlay.dataset.dragConverted;
+  }
+}
+
 function enhanceOverlayChrome(overlay) {
   if (!overlay || overlay.dataset.overlayChromeBound === 'true') return;
+
+  if (overlay.dataset.overlayPositionInitialised !== 'true') {
+    resetOverlayPosition(overlay);
+    overlay.dataset.overlayPositionInitialised = 'true';
+  }
 
   let handle = overlay.querySelector('[data-drag-handle]');
   if (!handle) {
@@ -3466,6 +3485,12 @@ function renderRouteDetails(route, options = {}) {
   const updatedAtMarkup = updatedAtText && updatedAtText !== createdAtText
     ? `<li><strong>Updated:</strong> ${escapeHtml(updatedAtText)}</li>`
     : '';
+  const rushHoursMarkup = buildTimeSection('Rush hours', route.rushHours, 'Rush hour data unavailable.');
+  const quietHoursMarkup = buildTimeSection('Quiet hours', route.quietHours, 'Quiet hour data unavailable.');
+  const variationsMarkup = buildVariationsMarkup(route.variations);
+  const drawnPathMarkup = buildPathSection('Drawn path', route.path);
+  const snappedPathMarkup = buildPathSection('Snapped path', route.snappedPath);
+  const rawDataMarkup = buildRawRouteDataSection(route);
 
   container.innerHTML = `
     <h2>${escapeHtml(route.name)}</h2>
@@ -3481,7 +3506,13 @@ function renderRouteDetails(route, options = {}) {
       ${createdAtMarkup}
       ${updatedAtMarkup}
     </ul>
+    ${rushHoursMarkup}
+    ${quietHoursMarkup}
+    ${variationsMarkup}
+    ${drawnPathMarkup}
+    ${snappedPathMarkup}
     ${stopsMarkup}
+    ${rawDataMarkup}
   `;
 }
 
@@ -3504,6 +3535,131 @@ function buildStopsMarkup(stops) {
         ${items.join('')}
       </ul>
     </div>
+  `;
+}
+
+function buildTimeSection(label, values, emptyMessage) {
+  const normalized = Array.isArray(values)
+    ? values
+        .map(value => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean)
+    : [];
+
+  if (!normalized.length) {
+    return `
+      <div class="route-details__section">
+        <strong>${escapeHtml(label)}</strong>
+        <p class="route-details__empty">${escapeHtml(emptyMessage || 'No data recorded yet.')}</p>
+      </div>
+    `;
+  }
+
+  const chips = normalized
+    .map(value => `<li class="route-details__chip">${escapeHtml(value)}</li>`)
+    .join('');
+
+  return `
+    <div class="route-details__section">
+      <strong>${escapeHtml(label)}</strong>
+      <ul class="route-details__chips">${chips}</ul>
+    </div>
+  `;
+}
+
+function buildVariationsMarkup(variations) {
+  if (!Array.isArray(variations) || variations.length === 0) {
+    return `
+      <div class="route-details__section">
+        <strong>Variations</strong>
+        <p class="route-details__empty">No variations recorded yet.</p>
+      </div>
+    `;
+  }
+
+  const items = variations
+    .map((variation, index) => {
+      const defaultLabel = `Variation ${index + 1}`;
+      if (!variation || typeof variation !== 'object') {
+        return `
+          <details class="route-details__subsection" open>
+            <summary>${escapeHtml(defaultLabel)}</summary>
+            <p class="route-details__muted">${escapeHtml(String(variation))}</p>
+          </details>
+        `;
+      }
+
+      const label = variation.name ? String(variation.name) : defaultLabel;
+      const description = variation.description ? `<p class="route-details__muted">${escapeHtml(variation.description)}</p>` : '';
+      const summaryParts = [];
+      if (Array.isArray(variation.path)) {
+        summaryParts.push(`${variation.path.length} path point${variation.path.length === 1 ? '' : 's'}`);
+      }
+      if (Array.isArray(variation.stops)) {
+        summaryParts.push(`${variation.stops.length} stop${variation.stops.length === 1 ? '' : 's'}`);
+      }
+      const summaryText = summaryParts.length ? `<span class="route-details__muted">${escapeHtml(summaryParts.join(' · '))}</span>` : '';
+      const raw = `<pre class="route-details__code">${escapeHtml(JSON.stringify(variation, null, 2))}</pre>`;
+      return `
+        <details class="route-details__subsection" open>
+          <summary>${escapeHtml(label)}</summary>
+          ${summaryText}
+          ${description}
+          ${raw}
+        </details>
+      `;
+    })
+    .join('');
+
+  return `
+    <details class="route-details__section" open>
+      <summary>Variations</summary>
+      <div class="route-details__variations">${items}</div>
+    </details>
+  `;
+}
+
+function buildPathSection(label, coordinates) {
+  if (!Array.isArray(coordinates) || coordinates.length === 0) {
+    return `
+      <div class="route-details__section">
+        <strong>${escapeHtml(label)}</strong>
+        <p class="route-details__empty">No coordinates recorded yet.</p>
+      </div>
+    `;
+  }
+
+  const items = coordinates
+    .map((point, index) => {
+      if (!point || typeof point !== 'object') {
+        return `<li><span><strong>Point ${index + 1}</strong></span><span>${escapeHtml(String(point))}</span></li>`;
+      }
+      const latText = escapeHtml(formatCoordinate(point.lat));
+      const lngText = escapeHtml(formatCoordinate(point.lng));
+      const extras = Object.entries(point)
+        .filter(([key]) => key !== 'lat' && key !== 'lng')
+        .map(([key, value]) => `${escapeHtml(key)}: ${escapeHtml(String(value))}`);
+      const extrasText = extras.length ? `<span class="route-details__muted">${extras.join(' · ')}</span>` : '';
+      return `<li><span><strong>Point ${index + 1}</strong></span><span>${latText}, ${lngText}</span>${extrasText}</li>`;
+    })
+    .join('');
+
+  return `
+    <details class="route-details__section" open>
+      <summary>${escapeHtml(label)}</summary>
+      <ol class="route-details__coordinates">${items}</ol>
+    </details>
+  `;
+}
+
+function buildRawRouteDataSection(route) {
+  if (!route || typeof route !== 'object') {
+    return '';
+  }
+  return `
+    <details class="route-details__section" open>
+      <summary>Full route record</summary>
+      <pre class="route-details__code">${escapeHtml(JSON.stringify(route, null, 2))}</pre>
+    </details>
   `;
 }
 
