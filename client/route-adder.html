@@ -28,12 +28,51 @@
     </nav>
   </div>
   <section
+    id="route-contributor-panel"
+    class="overlay-panel route-contributor"
+    aria-labelledby="route-contributor-heading"
+    data-draggable-overlay
+    data-overlay-label="Route contributor profile"
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <h2 id="route-contributor-heading">Route contributor profile</h2>
+    <p class="route-contributor__hint">
+      Use the same username and home town you registered with so we can verify your account before saving new routes.
+    </p>
+    <form class="route-contributor__form" data-static-form data-route-contributor-form>
+      <label>
+        Custom username
+        <input
+          type="text"
+          name="contributorUsername"
+          autocomplete="username"
+          required
+          data-route-contributor-username
+        />
+      </label>
+      <label>
+        Home town
+        <input
+          type="text"
+          name="contributorHometown"
+          autocomplete="address-level2"
+          required
+          data-route-contributor-hometown
+        />
+      </label>
+      <div class="route-contributor__actions">
+        <button type="submit" class="cta secondary">Use these details</button>
+      </div>
+      <p class="route-contributor__feedback" data-route-contributor-feedback role="status" aria-live="polite"></p>
+    </form>
+  </section>
+  <section
     id="saved-routes-panel"
     class="overlay-panel route-adder-saved"
     aria-labelledby="saved-routes-heading"
     data-draggable-overlay
   >
-    <div class="overlay-drag-handle" data-drag-handle aria-hidden="true"></div>
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
     <div class="route-adder-saved__header">
       <h2 id="saved-routes-heading">Saved routes</h2>
       <button type="button" class="link-button" data-saved-routes-refresh>Refresh</button>
@@ -63,7 +102,7 @@
     aria-label="Route editing tools"
     data-draggable-overlay
   >
-    <div class="overlay-drag-handle" data-drag-handle aria-hidden="true"></div>
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
     <p id="editor-status" class="editor-status" role="status" aria-live="polite">
       Select "Draw" to start plotting a new taxi route, and select at least two points along the path you want to place a
       route onto to begin. One segment is added to your route per 'click' along the path.
@@ -83,6 +122,94 @@
       <p class="editor-tools__delete-hint">Selecting a route removes it from the shared directory immediately.</p>
     </div>
   </aside>
+  <section
+    id="route-save-dialog"
+    class="overlay-panel route-save-dialog"
+    data-draggable-overlay
+    data-overlay-label="Save route details"
+    hidden
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <h2>Save route details</h2>
+    <p class="route-save-dialog__intro">Complete the checklist below to add your corridor to the shared directory.</p>
+    <form class="route-save-dialog__form" data-static-form data-route-save-form>
+      <ol class="route-save-dialog__list">
+        <li>
+          <label for="route-save-point-a">Route point A name</label>
+          <input
+            id="route-save-point-a"
+            type="text"
+            name="pointA"
+            placeholder="e.g. Bree Taxi Rank"
+            required
+            data-route-save-point-a
+          />
+        </li>
+        <li>
+          <label for="route-save-point-b">Route point B name</label>
+          <input
+            id="route-save-point-b"
+            type="text"
+            name="pointB"
+            placeholder="e.g. Sandton Gautrain"
+            required
+            data-route-save-point-b
+          />
+        </li>
+        <li>
+          <label for="route-save-username">Custom username</label>
+          <input
+            id="route-save-username"
+            type="text"
+            name="username"
+            autocomplete="username"
+            required
+            data-route-save-username
+          />
+        </li>
+        <li>
+          <label for="route-save-hometown">Home town</label>
+          <input
+            id="route-save-hometown"
+            type="text"
+            name="homeTown"
+            autocomplete="address-level2"
+            required
+            data-route-save-hometown
+          />
+        </li>
+        <li>
+          <label for="route-save-minfare">Minimum fare price (ZAR)</label>
+          <input
+            id="route-save-minfare"
+            type="number"
+            name="fareMin"
+            min="0"
+            step="0.5"
+            required
+            data-route-save-fare-min
+          />
+        </li>
+        <li>
+          <label for="route-save-maxfare">Maximum fare price (ZAR)</label>
+          <input
+            id="route-save-maxfare"
+            type="number"
+            name="fareMax"
+            min="0"
+            step="0.5"
+            required
+            data-route-save-fare-max
+          />
+        </li>
+      </ol>
+      <div class="route-save-dialog__actions">
+        <button type="submit" class="cta">Save route</button>
+        <button type="button" class="cta secondary" data-route-save-cancel>Cancel</button>
+      </div>
+      <p class="route-save-dialog__feedback" data-route-save-feedback role="status" aria-live="polite"></p>
+    </form>
+  </section>
   <div id="map"></div>
 </body>
 </html>
