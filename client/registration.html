@@ -41,30 +41,60 @@
       <button type="button" class="cta secondary registration-account__signout" data-logout-button hidden>Sign out</button>
     </section>
     <form class="registration-form" data-static-form data-registration-form>
+      <div class="registration-grid">
+        <label>
+          First name (kept private)
+          <input type="text" name="firstName" placeholder="e.g. Lerato" autocomplete="given-name" required />
+        </label>
+        <label>
+          Last name (kept private)
+          <input type="text" name="lastName" placeholder="e.g. Mokoena" autocomplete="family-name" required />
+        </label>
+      </div>
       <label>
-        Select your role
-        <select name="role">
-          <option value="collector">Collector</option>
-          <option value="driver">Taxi Driver</option>
-          <option value="spaza">Spaza Owner</option>
-          <option value="depot">Taxi Rank Depot / Depot Shop</option>
-          <option value="subscriber">Monthly Subscriber</option>
-          <option value="owner">Taxi Owner</option>
-          <option value="route-adder">Route Adder</option>
-        </select>
+        Short account password
+        <input
+          type="password"
+          name="password"
+          placeholder="Create a short password"
+          autocomplete="new-password"
+          minlength="4"
+          required
+        />
       </label>
       <label>
-        Username
-        <input type="text" name="username" placeholder="Choose a username" autocomplete="username" minlength="3" required />
+        Custom username (public)
+        <input
+          type="text"
+          name="username"
+          placeholder="Choose a public username"
+          autocomplete="username"
+          minlength="3"
+          required
+        />
       </label>
       <label>
-        Account password
-        <input type="password" name="password" placeholder="Create a password" autocomplete="new-password" minlength="6" required />
+        Home town (public)
+        <input
+          type="text"
+          name="homeTown"
+          placeholder="e.g. Soweto"
+          autocomplete="address-level2"
+          required
+        />
       </label>
-      <label>
-        Full name
-        <input type="text" name="name" placeholder="e.g. Lerato Mokoena" />
-      </label>
+      <fieldset class="registration-roles">
+        <legend>Select your roles (choose at least one)</legend>
+        <div class="registration-roles__options" data-role-options>
+          <label><input type="checkbox" name="roles" value="taxi-manager" data-role-input /> Taxi Manager</label>
+          <label><input type="checkbox" name="roles" value="taxi-owner" data-role-input /> Taxi Owner</label>
+          <label><input type="checkbox" name="roles" value="taxi-rider" data-role-input /> Taxi Rider (Commuter)</label>
+          <label><input type="checkbox" name="roles" value="rank-manager" data-role-input /> Rank Manager</label>
+          <label><input type="checkbox" name="roles" value="collector" data-role-input /> Collector</label>
+          <label><input type="checkbox" name="roles" value="spaza-owner" data-role-input /> Spaza Owner</label>
+          <label><input type="checkbox" name="roles" value="monthly-subscriber" data-role-input /> Monthly Subscriber</label>
+        </div>
+      </fieldset>
       <label>
         Email address
         <input type="email" name="email" placeholder="you@example.com" />
@@ -92,7 +122,7 @@
         </label>
         <label>
           Password
-          <input type="password" name="password" autocomplete="current-password" minlength="6" required />
+          <input type="password" name="password" autocomplete="current-password" minlength="4" required />
         </label>
         <p class="registration-error" data-login-error hidden role="alert"></p>
         <button type="submit" class="cta secondary">Sign in</button>

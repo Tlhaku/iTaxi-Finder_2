@@ -2,7 +2,9 @@
   --map-control-offset: 72px;
   --overlay-panel-top: 108px;
   --overlay-panel-max-height: calc(100vh - 148px);
-  --overlay-minimized-height: 72px;
+  --overlay-minimized-height: clamp(52px, 9vh, 72px);
+  --overlay-toggle-size: clamp(32px, 8vw, 40px);
+  --overlay-handle-width: clamp(60px, 18vw, 96px);
 }
 
 html, body {
@@ -402,6 +404,100 @@ body.map-background {
   color: #b91c1c;
 }
 
+.route-contributor {
+  position: fixed;
+  top: calc(var(--overlay-panel-top) + 12px);
+  right: 24px;
+  width: min(320px, calc(100% - 48px));
+  padding: 20px 24px;
+  z-index: 935;
+}
+
+.route-contributor__form {
+  display: grid;
+  gap: 12px;
+}
+
+.route-contributor__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.route-contributor__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.route-contributor__feedback {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.route-contributor__feedback.error {
+  color: #b91c1c;
+}
+
+.route-save-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100% - 32px));
+  padding: 26px 28px;
+  z-index: 1200;
+}
+
+.route-save-dialog__form {
+  display: grid;
+  gap: 16px;
+}
+
+.route-save-dialog__intro {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.route-save-dialog__list {
+  list-style: decimal inside;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.route-save-dialog__list > li {
+  display: grid;
+  gap: 6px;
+}
+
+.route-save-dialog__list label {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.route-save-dialog__list input {
+  width: 100%;
+}
+
+.route-save-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.route-save-dialog__feedback {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.route-save-dialog__feedback.error {
+  color: #b91c1c;
+}
+
 .cta.danger {
   background: #dc2626;
   box-shadow: 0 16px 36px rgba(220, 38, 38, 0.25);
@@ -498,7 +594,7 @@ body.map-background {
 .overlay-drag-handle::before {
   content: '';
   display: block;
-  width: 56px;
+  width: var(--overlay-handle-width);
   height: 4px;
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.75);
@@ -511,13 +607,13 @@ body.map-background {
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
-  width: 72px;
+  width: var(--overlay-handle-width);
   height: 20px;
   z-index: 10;
 }
 
 .overlay-drag-handle--floating::before {
-  width: 72px;
+  width: 100%;
 }
 
 .overlay-body {
@@ -528,8 +624,8 @@ body.map-background {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 34px;
-  height: 34px;
+  width: var(--overlay-toggle-size);
+  height: var(--overlay-toggle-size);
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.16);
   background: rgba(255, 255, 255, 0.9);
@@ -570,7 +666,7 @@ body.map-background {
 
 .overlay-panel.is-minimized .overlay-drag-handle {
   flex: 0 0 auto;
-  width: 72px;
+  width: var(--overlay-handle-width);
   height: 18px;
   margin: 0;
 }
@@ -860,6 +956,12 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   font-size: 0.95rem;
 }
 
+.registration-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
 .registration-form input,
 .registration-form select,
 .registration-form textarea {
@@ -932,6 +1034,40 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
 
 .registration-login button {
   justify-self: start;
+}
+
+.registration-roles {
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.85);
+  display: grid;
+  gap: 12px;
+}
+
+.registration-roles legend {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.registration-roles__options {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.registration-roles__options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.registration-roles__options input {
+  width: auto;
+  height: auto;
 }
 
 .registration-role-fields {
@@ -1415,7 +1551,9 @@ body.page-route-adder #map::after {
     --map-control-offset: 64px;
     --overlay-panel-top: 88px;
     --overlay-panel-max-height: calc(100vh - 120px);
-    --overlay-minimized-height: 64px;
+    --overlay-minimized-height: clamp(50px, 9vh, 64px);
+    --overlay-toggle-size: clamp(30px, 10vw, 34px);
+    --overlay-handle-width: clamp(56px, 22vw, 90px);
   }
 
   .overlay-panel,
@@ -1442,6 +1580,18 @@ body.page-route-adder #map::after {
     left: 12px;
     width: min(300px, calc(100% - 24px));
     padding: 18px 18px;
+  }
+
+  .route-contributor {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    padding: 18px 18px;
+  }
+
+  .route-save-dialog {
+    width: min(360px, calc(100% - 24px));
+    padding: 22px 22px;
   }
 
   #editor-tools {
@@ -1475,8 +1625,6 @@ body.page-route-adder #map::after {
   }
 
   .overlay-toggle {
-    width: 30px;
-    height: 30px;
     top: 10px;
     right: 10px;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
@@ -1488,7 +1636,9 @@ body.page-route-adder #map::after {
     --map-control-offset: 60px;
     --overlay-panel-top: 80px;
     --overlay-panel-max-height: calc(100vh - 112px);
-    --overlay-minimized-height: 58px;
+    --overlay-minimized-height: clamp(48px, 11vh, 58px);
+    --overlay-toggle-size: clamp(28px, 12vw, 32px);
+    --overlay-handle-width: clamp(52px, 28vw, 84px);
   }
 
   #topbar {
@@ -1528,6 +1678,18 @@ body.page-route-adder #map::after {
   .route-adder-saved {
     width: min(280px, calc(100% - 20px));
     padding: 16px 16px;
+  }
+
+  .route-contributor {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    padding: 16px 16px;
+  }
+
+  .route-save-dialog {
+    width: min(320px, calc(100% - 20px));
+    padding: 20px 20px;
   }
 
   .route-adder-saved__list {

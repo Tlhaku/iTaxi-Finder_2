@@ -25,6 +25,15 @@ const usersPath = path.join(process.cwd(), 'data', 'users.json');
 let routes = [];
 let users = [];
 const sessions = new Map();
+const ALLOWED_ROLES = new Set([
+  'taxi-manager',
+  'taxi-owner',
+  'taxi-rider',
+  'rank-manager',
+  'collector',
+  'spaza-owner',
+  'monthly-subscriber',
+]);
 try {
   routes = JSON.parse(fs.readFileSync(routesPath, 'utf8'));
 } catch (e) {
@@ -116,14 +125,28 @@ function verifyPassword(password, user) {
 function sanitizeUserRecord(user) {
   if (!user) return null;
   const metadata = user.metadata && typeof user.metadata === 'object' ? user.metadata : {};
+  const rawRoles = Array.isArray(user.roles)
+    ? user.roles
+    : ensureString(user.role).trim()
+    ? [ensureString(user.role).trim()]
+    : [];
+  const roles = Array.from(
+    new Set(
+      rawRoles
+        .map(role => ensureString(role).trim().toLowerCase())
+        .filter(role => role && ALLOWED_ROLES.has(role)),
+    ),
+  );
   return {
     id: user.id,
-    username: user.username,
-    role: user.role,
-    name: user.name || '',
-    email: user.email || '',
-    phone: user.phone || '',
-    routes: user.routes || '',
+    username: ensureString(user.username).trim(),
+    firstName: ensureString(user.firstName).trim(),
+    lastName: ensureString(user.lastName).trim(),
+    homeTown: ensureString(user.homeTown).trim(),
+    roles,
+    email: ensureString(user.email).trim(),
+    phone: ensureString(user.phone).trim(),
+    routes: ensureString(user.routes).trim(),
     metadata,
     createdAt: user.createdAt || null,
     updatedAt: user.updatedAt || null,
@@ -192,35 +215,63 @@ function truncate(value, maxLength) {
   return value.trim().slice(0, maxLength);
 }
 
-function sanitizeAddedBy(input, sessionUser) {
+function findUserByIdentity(username, homeTown) {
+  const usernameValue = ensureString(username).trim();
+  const homeTownValue = ensureString(homeTown).trim();
+  if (!usernameValue || !homeTownValue) {
+    return null;
+  }
+  const usernameLower = usernameValue.toLowerCase();
+  const homeTownLower = homeTownValue.toLowerCase();
+  return users.find(user => {
+    const userNameLower = ensureString(user.username).trim().toLowerCase();
+    const userTownLower = ensureString(user.homeTown).trim().toLowerCase();
+    return userNameLower === usernameLower && userTownLower === homeTownLower;
+  }) || null;
+}
+
+function resolveContributor(contributor, sessionUser) {
   if (sessionUser) {
-    const username = truncate(sessionUser.username || '', 80);
-    const nameCandidate = ensureString(sessionUser.name).trim();
-    const name = truncate(nameCandidate || username, 120);
+    const username = truncate(ensureString(sessionUser.username).trim(), 80);
+    const homeTown = truncate(ensureString(sessionUser.homeTown).trim(), 120);
+    if (!username || !homeTown) {
+      return { error: 'Registered accounts must include a home town before saving routes.' };
+    }
     return {
-      username,
-      name,
+      addedBy: {
+        username,
+        name: truncate(username, 120),
+        homeTown,
+      },
+      user: sessionUser,
     };
   }
 
-  if (!input) {
-    return { username: '', name: '' };
+  if (!contributor) {
+    return { error: 'Provide a registered username and home town to save a route.' };
   }
 
-  if (typeof input === 'string') {
-    const trimmed = input.trim();
-    const value = truncate(trimmed, 120);
-    return { username: value, name: value };
+  const username = truncate(ensureString(contributor.username).trim(), 80);
+  const homeTown = truncate(ensureString(contributor.homeTown).trim(), 120);
+
+  if (!username || !homeTown) {
+    return { error: 'Provide a registered username and home town to save a route.' };
   }
 
-  const usernameCandidate = ensureString(input.username).trim();
-  const nameCandidate = ensureString(input.name).trim();
-  const username = truncate(usernameCandidate || nameCandidate, 80);
-  const name = truncate(nameCandidate || username, 120);
+  const matchedUser = findUserByIdentity(username, homeTown);
+  if (!matchedUser) {
+    return {
+      error: 'No registration found for that username and home town. Register first before saving routes.',
+    };
+  }
 
   return {
-    username,
-    name,
+    addedBy: {
+      username: truncate(matchedUser.username || username, 80),
+      name: truncate(matchedUser.username || username, 120),
+      homeTown: truncate(matchedUser.homeTown || homeTown, 120),
+    },
+    user: matchedUser,
   };
 }
 
@@ -436,7 +487,16 @@ function handleCreateRoute(req, res) {
       const nextId = routes.reduce((max, route) => Math.max(max, Number(route.routeId) || 0), 0) + 1;
       const sessionInfo = getSession(req);
       const sessionUser = sessionInfo ? sessionInfo.user : null;
-      const addedBy = sanitizeAddedBy(payload.addedBy, sessionUser);
+      const contributorResult = resolveContributor(payload.addedBy, sessionUser || null);
+      if (!contributorResult || contributorResult.error) {
+        const message = contributorResult && contributorResult.error
+          ? contributorResult.error
+          : 'Contributor details must match a registered user.';
+        sendJson(res, { message }, 400);
+        return;
+      }
+      const addedBy = contributorResult.addedBy;
+      const contributorUser = contributorResult.user;
       const timestamp = new Date().toISOString();
 
       const route = {
@@ -456,7 +516,7 @@ function handleCreateRoute(req, res) {
         snappedPath: snappedPath.length ? snappedPath : basePath,
         variations: Array.isArray(payload.variations) ? payload.variations : [],
         addedBy,
-        addedByUserId: sessionUser ? sessionUser.id : null,
+        addedByUserId: contributorUser ? contributorUser.id : null,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -489,11 +549,24 @@ function handleUpdateRoute(req, res, id) {
       const snappedPath = sanitizeCoordinateList(payload.snappedPath || target.snappedPath || basePath);
       const sessionInfo = getSession(req);
       const sessionUser = sessionInfo ? sessionInfo.user : null;
-      const addedByInput = Object.prototype.hasOwnProperty.call(payload, 'addedBy')
-        ? payload.addedBy
-        : target.addedBy;
-      const addedBy = sanitizeAddedBy(addedByInput, sessionUser || null);
-      const addedByUserId = sessionUser ? sessionUser.id : target.addedByUserId || null;
+      const addedByProvided = Object.prototype.hasOwnProperty.call(payload, 'addedBy');
+      const contributorSource = addedByProvided ? payload.addedBy : target.addedBy;
+      let addedBy = target.addedBy || { username: '', name: '', homeTown: '' };
+      let addedByUserId = target.addedByUserId || null;
+      if (sessionUser || addedByProvided) {
+        const contributorResult = resolveContributor(contributorSource, sessionUser || null);
+        if (!contributorResult || contributorResult.error) {
+          const message = contributorResult && contributorResult.error
+            ? contributorResult.error
+            : 'Contributor details must match a registered user.';
+          sendJson(res, { message }, 400);
+          return;
+        }
+        addedBy = contributorResult.addedBy;
+        if (contributorResult.user && contributorResult.user.id !== undefined) {
+          addedByUserId = contributorResult.user.id;
+        }
+      }
       const updatedAt = new Date().toISOString();
       routes[index] = {
         ...target,
@@ -583,14 +656,26 @@ async function handleUserRegister(req, res) {
     return;
   }
 
-  const username = ensureString(payload.username).trim();
+  const username = truncate(ensureString(payload.username).trim(), 80);
   const password = typeof payload.password === 'string' ? payload.password : '';
-  const roleInput = ensureString(payload.role).trim();
-  const role = roleInput ? roleInput.toLowerCase() : 'collector';
-  const name = ensureString(payload.name).trim();
-  const email = ensureString(payload.email).trim();
-  const phone = ensureString(payload.phone).trim();
-  const routesField = ensureString(payload.routes).trim();
+  const firstName = truncate(ensureString(payload.firstName).trim(), 80);
+  const lastName = truncate(ensureString(payload.lastName).trim(), 80);
+  const homeTown = truncate(ensureString(payload.homeTown).trim(), 120);
+  const rolesInput = Array.isArray(payload.roles)
+    ? payload.roles
+    : typeof payload.roles === 'string'
+    ? payload.roles.split(',')
+    : [];
+  const roles = Array.from(
+    new Set(
+      rolesInput
+        .map(role => ensureString(role).trim().toLowerCase())
+        .filter(role => role && ALLOWED_ROLES.has(role)),
+    ),
+  ).sort();
+  const email = truncate(ensureString(payload.email).trim(), 160);
+  const phone = truncate(ensureString(payload.phone).trim(), 60);
+  const routesField = truncate(ensureString(payload.routes).trim(), 500);
   const metadata = sanitizeMetadata(payload.metadata);
 
   if (!username) {
@@ -603,8 +688,28 @@ async function handleUserRegister(req, res) {
     return;
   }
 
-  if (!password || password.length < 6) {
-    sendJson(res, { message: 'Password must be at least 6 characters long.' }, 400);
+  if (!firstName) {
+    sendJson(res, { message: 'First name is required.' }, 400);
+    return;
+  }
+
+  if (!lastName) {
+    sendJson(res, { message: 'Last name is required.' }, 400);
+    return;
+  }
+
+  if (!homeTown) {
+    sendJson(res, { message: 'Home town is required.' }, 400);
+    return;
+  }
+
+  if (!Array.isArray(roles) || roles.length === 0) {
+    sendJson(res, { message: 'Select at least one role from the provided list.' }, 400);
+    return;
+  }
+
+  if (!password || password.length < 4) {
+    sendJson(res, { message: 'Password must be at least 4 characters long.' }, 400);
     return;
   }
 
@@ -618,12 +723,16 @@ async function handleUserRegister(req, res) {
 
   const passwordData = hashPassword(password);
   const now = new Date().toISOString();
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
 
   const user = {
     id: getNextUserId(),
     username,
-    role,
-    name,
+    roles,
+    firstName,
+    lastName,
+    homeTown,
+    name: displayName,
     email,
     phone,
     routes: routesField,

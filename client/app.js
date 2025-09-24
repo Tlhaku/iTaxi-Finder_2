@@ -4,11 +4,14 @@ let resizeListenerAttached = false;
 let routeFinderState;
 let adminRouteFinderState;
 let overlayBodyIdCounter = 0;
+let routeSaveDialogState;
+let routeContributorState;
 
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
   ownerProfile: 'itaxiFinderOwnerProfile',
   authSession: 'itaxiFinderAuthSession',
+  routeContributor: 'itaxiFinderRouteContributor',
 };
 
 function safeStorageGet(key, fallback = null) {
@@ -147,6 +150,47 @@ function setOwnerProfile(profile) {
   notifyAdminDataChanged();
 }
 
+function normalizeContributor(data = {}) {
+  const username = typeof data.username === 'string' ? data.username.trim() : '';
+  const homeTown = typeof data.homeTown === 'string' ? data.homeTown.trim() : '';
+  return { username, homeTown };
+}
+
+function getRouteContributor() {
+  const stored = safeStorageGet(STORAGE_KEYS.routeContributor, null);
+  if (!stored) return null;
+  const normalized = normalizeContributor(stored);
+  if (!normalized.username && !normalized.homeTown) {
+    return null;
+  }
+  return normalized;
+}
+
+function setRouteContributor(contributor) {
+  const normalized = normalizeContributor(contributor);
+  if (!normalized.username && !normalized.homeTown) {
+    safeStorageRemove(STORAGE_KEYS.routeContributor);
+    if (routeContributorState && typeof routeContributorState.setValues === 'function') {
+      routeContributorState.setValues({ username: '', homeTown: '' });
+    }
+    if (routeEditorState) {
+      routeEditorState.contributor = { username: '', homeTown: '' };
+    }
+    return;
+  }
+  safeStorageSet(STORAGE_KEYS.routeContributor, normalized);
+  if (routeContributorState && typeof routeContributorState.setValues === 'function') {
+    routeContributorState.setValues(normalized, { preserveFeedback: true });
+  }
+  if (routeEditorState) {
+    routeEditorState.contributor = { ...normalized };
+  }
+}
+
+function clearRouteContributor() {
+  setRouteContributor(null);
+}
+
 function requestCurrentPosition() {
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -173,7 +217,7 @@ function requestCurrentPosition() {
 function enableDriverLiveLocation() {
   const profile = getDriverProfile();
   if (!profile) {
-    return Promise.reject(new Error('Register as a taxi driver before enabling live location.'));
+    return Promise.reject(new Error('Register as a taxi manager before enabling live location.'));
   }
   return requestCurrentPosition().then(location => {
     const updated = { ...profile, sharingEnabled: true, lastKnownLocation: location };
@@ -185,7 +229,7 @@ function enableDriverLiveLocation() {
 function disableDriverLiveLocation() {
   const profile = getDriverProfile();
   if (!profile) {
-    return Promise.reject(new Error('Register as a taxi driver before disabling live location.'));
+    return Promise.reject(new Error('Register as a taxi manager before disabling live location.'));
   }
   const updated = { ...profile, sharingEnabled: false };
   setDriverProfile(updated);
@@ -195,7 +239,7 @@ function disableDriverLiveLocation() {
 function refreshDriverLocation() {
   const profile = getDriverProfile();
   if (!profile) {
-    return Promise.reject(new Error('Register as a taxi driver before refreshing your location.'));
+    return Promise.reject(new Error('Register as a taxi manager before refreshing your location.'));
   }
   if (!profile.sharingEnabled) {
     return Promise.reject(new Error('Enable live location before refreshing your position.'));
@@ -597,7 +641,7 @@ function enhanceOverlayChrome(overlay) {
     handle.setAttribute('aria-hidden', 'true');
     overlay.insertBefore(handle, overlay.firstChild);
   } else {
-    handle.classList.add('overlay-drag-handle');
+    handle.classList.add('overlay-drag-handle', 'overlay-drag-handle--floating');
     if (!handle.hasAttribute('aria-hidden')) {
       handle.setAttribute('aria-hidden', 'true');
     }
@@ -816,6 +860,134 @@ function setupDraggableOverlays() {
   });
 }
 
+function setupRouteContributorPanel() {
+  const panel = document.getElementById('route-contributor-panel');
+  if (!panel) return;
+  if (panel.dataset.contributorBound === 'true') {
+    if (!routeContributorState) {
+      const usernameInput = panel.querySelector('[data-route-contributor-username]');
+      const homeTownInput = panel.querySelector('[data-route-contributor-hometown]');
+      const feedback = panel.querySelector('[data-route-contributor-feedback]');
+      routeContributorState = {
+        panel,
+        usernameInput,
+        homeTownInput,
+        feedback,
+        setValues(contributor, options = {}) {
+          const normalized = normalizeContributor(contributor);
+          if (this.usernameInput) this.usernameInput.value = normalized.username;
+          if (this.homeTownInput) this.homeTownInput.value = normalized.homeTown;
+          if (!options.preserveFeedback && this.feedback) {
+            this.feedback.textContent = '';
+            this.feedback.classList.remove('error');
+          }
+          this.currentContributor = normalized;
+        },
+        showFeedback(message, isError = false) {
+          if (!this.feedback) return;
+          this.feedback.textContent = message;
+          this.feedback.classList.toggle('error', Boolean(isError));
+        },
+        currentContributor: normalizeContributor(),
+      };
+    }
+    return;
+  }
+
+  const form = panel.querySelector('[data-route-contributor-form]');
+  const usernameInput = panel.querySelector('[data-route-contributor-username]');
+  const homeTownInput = panel.querySelector('[data-route-contributor-hometown]');
+  const feedback = panel.querySelector('[data-route-contributor-feedback]');
+
+  routeContributorState = {
+    panel,
+    form,
+    usernameInput,
+    homeTownInput,
+    feedback,
+    setValues(contributor, options = {}) {
+      const normalized = normalizeContributor(contributor);
+      if (this.usernameInput) this.usernameInput.value = normalized.username;
+      if (this.homeTownInput) this.homeTownInput.value = normalized.homeTown;
+      if (!options.preserveFeedback && this.feedback) {
+        this.feedback.textContent = '';
+        this.feedback.classList.remove('error');
+      }
+      this.currentContributor = normalized;
+    },
+    showFeedback(message, isError = false) {
+      if (!this.feedback) return;
+      this.feedback.textContent = message;
+      this.feedback.classList.toggle('error', Boolean(isError));
+    },
+    currentContributor: normalizeContributor(),
+  };
+
+  const sessionUser = getLoggedInUser();
+  const storedContributor = getRouteContributor();
+  const sessionContributor = sessionUser
+    ? normalizeContributor({ username: sessionUser.username, homeTown: sessionUser.homeTown })
+    : null;
+  const defaults = storedContributor || sessionContributor || normalizeContributor();
+  routeContributorState.setValues(defaults, { preserveFeedback: true });
+  if (defaults.username || defaults.homeTown) {
+    setRouteContributor(defaults);
+  }
+
+  if (form && !form.dataset.routeContributorBound) {
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!routeContributorState) return;
+      const username = routeContributorState.usernameInput
+        ? routeContributorState.usernameInput.value.trim()
+        : '';
+      const homeTown = routeContributorState.homeTownInput
+        ? routeContributorState.homeTownInput.value.trim()
+        : '';
+
+      if (!username) {
+        routeContributorState.showFeedback('Enter the custom username you registered with.', true);
+        if (routeContributorState.usernameInput) {
+          routeContributorState.usernameInput.focus();
+        }
+        return;
+      }
+
+      if (!homeTown) {
+        routeContributorState.showFeedback('Enter the home town saved on your account.', true);
+        if (routeContributorState.homeTownInput) {
+          routeContributorState.homeTownInput.focus();
+        }
+        return;
+      }
+
+      const contributor = { username, homeTown };
+      setRouteContributor(contributor);
+      routeContributorState.showFeedback('Contributor details saved. We will verify them when you store a route.');
+    });
+    form.dataset.routeContributorBound = 'true';
+  }
+
+  if (!panel.dataset.contributorAuthBound) {
+    document.addEventListener('authchange', () => {
+      const activeUser = getLoggedInUser();
+      if (activeUser) {
+        const contributor = normalizeContributor({
+          username: activeUser.username,
+          homeTown: activeUser.homeTown,
+        });
+        setRouteContributor(contributor);
+        if (routeContributorState) {
+          routeContributorState.setValues(contributor, { preserveFeedback: true });
+        }
+      }
+    });
+    panel.dataset.contributorAuthBound = 'true';
+  }
+
+  panel.dataset.contributorBound = 'true';
+}
+
 function setupSavedRoutesManager() {
   const panel = document.getElementById('saved-routes-panel');
   if (!panel) return null;
@@ -855,6 +1027,187 @@ function setupSavedRoutesManager() {
   panel.dataset.savedRoutesBound = 'true';
   loadSavedRoutesForEditor(state, { initial: true });
   return state;
+}
+
+function setupRouteSaveDialog() {
+  if (routeSaveDialogState && routeSaveDialogState.dialog && routeSaveDialogState.dialog.isConnected) {
+    return routeSaveDialogState;
+  }
+
+  const dialog = document.getElementById('route-save-dialog');
+  if (!dialog) {
+    routeSaveDialogState = null;
+    return null;
+  }
+
+  const form = dialog.querySelector('[data-route-save-form]');
+  const cancelButton = dialog.querySelector('[data-route-save-cancel]');
+  const feedback = dialog.querySelector('[data-route-save-feedback]');
+
+  routeSaveDialogState = {
+    dialog,
+    form,
+    cancelButton,
+    feedback,
+    inputs: {
+      pointA: dialog.querySelector('[data-route-save-point-a]'),
+      pointB: dialog.querySelector('[data-route-save-point-b]'),
+      username: dialog.querySelector('[data-route-save-username]'),
+      homeTown: dialog.querySelector('[data-route-save-hometown]'),
+      fareMin: dialog.querySelector('[data-route-save-fare-min]'),
+      fareMax: dialog.querySelector('[data-route-save-fare-max]'),
+    },
+    resolver: null,
+  };
+
+  const hideDialog = () => {
+    dialog.hidden = true;
+    dialog.setAttribute('aria-hidden', 'true');
+    dialog.dataset.active = 'false';
+  };
+
+  const resetFeedback = () => {
+    if (!routeSaveDialogState || !routeSaveDialogState.feedback) return;
+    routeSaveDialogState.feedback.textContent = '';
+    routeSaveDialogState.feedback.classList.remove('error');
+  };
+
+  const showFeedback = (message, isError = false) => {
+    if (!routeSaveDialogState || !routeSaveDialogState.feedback) return;
+    routeSaveDialogState.feedback.textContent = message;
+    routeSaveDialogState.feedback.classList.toggle('error', Boolean(isError));
+  };
+
+  const resolveDialog = result => {
+    hideDialog();
+    resetFeedback();
+    const resolver = routeSaveDialogState ? routeSaveDialogState.resolver : null;
+    routeSaveDialogState.resolver = null;
+    if (typeof resolver === 'function') {
+      resolver(result);
+    }
+  };
+
+  if (form && !form.dataset.routeSaveBound) {
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!routeSaveDialogState) return;
+      const { inputs } = routeSaveDialogState;
+      const pointA = inputs.pointA ? inputs.pointA.value.trim() : '';
+      const pointB = inputs.pointB ? inputs.pointB.value.trim() : '';
+      const username = inputs.username ? inputs.username.value.trim() : '';
+      const homeTown = inputs.homeTown ? inputs.homeTown.value.trim() : '';
+      const fareMinValueRaw = inputs.fareMin ? inputs.fareMin.value.trim() : '';
+      const fareMaxValueRaw = inputs.fareMax ? inputs.fareMax.value.trim() : '';
+
+      if (!pointA) {
+        showFeedback('Provide a name for route point A before saving.', true);
+        if (inputs.pointA) inputs.pointA.focus();
+        return;
+      }
+
+      if (!pointB) {
+        showFeedback('Provide a name for route point B before saving.', true);
+        if (inputs.pointB) inputs.pointB.focus();
+        return;
+      }
+
+      if (!username) {
+        showFeedback('Enter your registered custom username.', true);
+        if (inputs.username) inputs.username.focus();
+        return;
+      }
+
+      if (!homeTown) {
+        showFeedback('Enter the home town linked to your registration.', true);
+        if (inputs.homeTown) inputs.homeTown.focus();
+        return;
+      }
+
+      const fareMinValue = Number.parseFloat(fareMinValueRaw);
+      if (!Number.isFinite(fareMinValue) || fareMinValue < 0) {
+        showFeedback('Enter a valid minimum fare price.', true);
+        if (inputs.fareMin) inputs.fareMin.focus();
+        return;
+      }
+
+      const fareMaxValue = Number.parseFloat(fareMaxValueRaw);
+      if (!Number.isFinite(fareMaxValue) || fareMaxValue < fareMinValue) {
+        showFeedback('Maximum fare must be equal to or higher than the minimum.', true);
+        if (inputs.fareMax) inputs.fareMax.focus();
+        return;
+      }
+
+      resolveDialog({
+        pointAName: pointA,
+        pointBName: pointB,
+        username,
+        homeTown,
+        fareMin: fareMinValue,
+        fareMax: fareMaxValue,
+      });
+    });
+    form.dataset.routeSaveBound = 'true';
+  }
+
+  if (cancelButton && !cancelButton.dataset.routeSaveBound) {
+    cancelButton.addEventListener('click', () => {
+      resolveDialog(null);
+    });
+    cancelButton.dataset.routeSaveBound = 'true';
+  }
+
+  hideDialog();
+  return routeSaveDialogState;
+}
+
+function openRouteSaveDialog(defaults = {}) {
+  const state = setupRouteSaveDialog();
+  if (!state) return Promise.resolve(null);
+
+  const normalized = {
+    pointAName: typeof defaults.pointAName === 'string' ? defaults.pointAName.trim() : '',
+    pointBName: typeof defaults.pointBName === 'string' ? defaults.pointBName.trim() : '',
+    username: typeof defaults.username === 'string' ? defaults.username.trim() : '',
+    homeTown: typeof defaults.homeTown === 'string' ? defaults.homeTown.trim() : '',
+    fareMin: Number.isFinite(Number(defaults.fareMin)) ? Number(defaults.fareMin) : '',
+    fareMax: Number.isFinite(Number(defaults.fareMax)) ? Number(defaults.fareMax) : '',
+  };
+
+  if (state.inputs.pointA) state.inputs.pointA.value = normalized.pointAName;
+  if (state.inputs.pointB) state.inputs.pointB.value = normalized.pointBName;
+  if (state.inputs.username) state.inputs.username.value = normalized.username;
+  if (state.inputs.homeTown) state.inputs.homeTown.value = normalized.homeTown;
+  if (state.inputs.fareMin) state.inputs.fareMin.value = normalized.fareMin === '' ? '' : normalized.fareMin;
+  if (state.inputs.fareMax) state.inputs.fareMax.value = normalized.fareMax === '' ? '' : normalized.fareMax;
+
+  if (state.feedback) {
+    state.feedback.textContent = '';
+    state.feedback.classList.remove('error');
+  }
+
+  if (state.resolver) {
+    const previousResolver = state.resolver;
+    state.resolver = null;
+    previousResolver(null);
+  }
+
+  state.dialog.hidden = false;
+  state.dialog.removeAttribute('aria-hidden');
+  state.dialog.dataset.active = 'true';
+
+  const focusTarget = state.inputs.pointA || state.inputs.username;
+  if (focusTarget && typeof focusTarget.focus === 'function') {
+    window.requestAnimationFrame(() => {
+      focusTarget.focus({ preventScroll: true });
+    });
+  }
+
+  return new Promise(resolve => {
+    state.resolver = result => {
+      resolve(result);
+    };
+  });
 }
 
 function setSavedRoutesLoading(state, isLoading) {
@@ -959,13 +1312,21 @@ function renderSavedRoutesList(state) {
     meta.textContent = `${city}, ${province}`;
     text.appendChild(meta);
 
-    const contributorLabel = route.addedBy && (route.addedBy.name || route.addedBy.username)
-      ? route.addedBy.name || route.addedBy.username
+    const contributorUsername = route.addedBy && typeof route.addedBy.username === 'string'
+      ? route.addedBy.username
       : '';
-    if (contributorLabel) {
+    const contributorHomeTown = route.addedBy && typeof route.addedBy.homeTown === 'string'
+      ? route.addedBy.homeTown
+      : '';
+    if (contributorUsername || contributorHomeTown) {
       const contributor = document.createElement('span');
       contributor.className = 'route-adder-saved__item-contributor';
-      contributor.textContent = `By ${contributorLabel}`;
+      if (contributorHomeTown) {
+        const usernameText = contributorUsername || 'Registered contributor';
+        contributor.textContent = `By ${usernameText} · ${contributorHomeTown}`;
+      } else {
+        contributor.textContent = `By ${contributorUsername}`;
+      }
       text.appendChild(contributor);
     }
 
@@ -1152,6 +1513,8 @@ function setupRouteAdder(map) {
     redoStack: [],
     pathListeners: [],
     savedRoutes: null,
+    contributor: normalizeContributor(getRouteContributor() || {}),
+    lastSaveDetails: null,
     polyline: new google.maps.Polyline({
       map,
       strokeColor: '#2563eb',
@@ -1187,6 +1550,9 @@ function setupRouteAdder(map) {
   if (savedRoutesState) {
     routeEditorState.savedRoutes = savedRoutesState;
   }
+
+  setupRouteContributorPanel();
+  setupRouteSaveDialog();
 
   routeEditorState.mapClickListener = map.addListener('click', event => {
     if (!routeEditorState || routeEditorState.mode !== 'draw') return;
@@ -1455,61 +1821,57 @@ async function saveCurrentRoute(state) {
     return;
   }
 
-  const name = window.prompt('Route name', 'New Taxi Route');
-  if (!name) {
-    setEditorStatus(state, 'Route save cancelled. Provide a name to save the route.');
+  const sessionUser = getLoggedInUser();
+  const contributorDefaults = normalizeContributor(
+    state.contributor
+      || getRouteContributor()
+      || (sessionUser ? { username: sessionUser.username, homeTown: sessionUser.homeTown } : {}),
+  );
+
+  const previousDetails = state.lastSaveDetails || {};
+  const dialogDefaults = {
+    pointAName: previousDetails.pointAName || '',
+    pointBName: previousDetails.pointBName || '',
+    username: contributorDefaults.username,
+    homeTown: contributorDefaults.homeTown,
+    fareMin: previousDetails.fareMin,
+    fareMax: previousDetails.fareMax,
+  };
+
+  const details = await openRouteSaveDialog(dialogDefaults);
+  if (!details) {
+    setEditorStatus(state, 'Route save cancelled. Provide the listed details to store your route.');
     return;
   }
 
-  const sessionUser = getLoggedInUser();
-  let contributorUsername = '';
-  let contributorName = '';
-  if (sessionUser) {
-    contributorUsername = typeof sessionUser.username === 'string' ? sessionUser.username.trim() : '';
-    const storedName = typeof sessionUser.name === 'string' ? sessionUser.name.trim() : '';
-    contributorName = storedName || contributorUsername || 'Signed-in user';
-    if (!contributorUsername) {
-      contributorUsername = contributorName;
-    }
-  } else {
-    const providedName = window.prompt('Your name (to record with this route)', '');
-    if (!providedName) {
-      setEditorStatus(state, 'Route save cancelled. Provide your name to save the route.');
-      return;
-    }
-    contributorName = providedName.trim();
-    if (!contributorName) {
-      setEditorStatus(state, 'Route save cancelled. Provide your name to save the route.');
-      return;
-    }
-    contributorUsername = contributorName;
-  }
-  const provinceInput = window.prompt('Province', '');
-  const cityInput = window.prompt('City or Town', '');
-  const minFareInput = window.prompt('Minimum fare (ZAR)', '10');
-  const maxFareInput = window.prompt('Maximum fare (ZAR)', minFareInput || '12');
-  const gesture = window.prompt('Hand signal / gesture', '') || '';
+  setRouteContributor({ username: details.username, homeTown: details.homeTown });
+  state.contributor = { username: details.username, homeTown: details.homeTown };
+  state.lastSaveDetails = { ...details };
 
-  const fareMin = Number.parseFloat(minFareInput);
-  const fareMax = Number.parseFloat(maxFareInput);
+  const routeNameParts = [details.pointAName, details.pointBName].filter(part => part && part.trim());
+  const generatedName = routeNameParts.length ? routeNameParts.join(' – ') : 'New Taxi Route';
 
   const payload = {
-    name,
-    gesture,
-    province: typeof provinceInput === 'string' ? provinceInput.trim() : '',
-    city: typeof cityInput === 'string' ? cityInput.trim() : '',
+    name: generatedName,
+    gesture: '',
+    province: '',
+    city: details.homeTown,
     fare: {
-      min: Number.isFinite(fareMin) ? fareMin : 0,
-      max: Number.isFinite(fareMax) ? fareMax : Number.isFinite(fareMin) ? fareMin : 0,
+      min: Number.isFinite(details.fareMin) ? details.fareMin : 0,
+      max: Number.isFinite(details.fareMax) ? details.fareMax : Number.isFinite(details.fareMin) ? details.fareMin : 0,
       currency: 'ZAR',
     },
-    stops: buildStopsFromPath(workingPath),
+    stops: buildStopsFromPath(workingPath, {
+      startName: details.pointAName,
+      endName: details.pointBName,
+    }),
     path: cloneCoordinateList(state.path),
     snappedPath: cloneCoordinateList(state.snappedPath.length ? state.snappedPath : state.path),
     variations: [],
     addedBy: {
-      name: contributorName,
-      username: contributorUsername,
+      name: details.username,
+      username: details.username,
+      homeTown: details.homeTown,
     },
   };
 
@@ -1522,9 +1884,16 @@ async function saveCurrentRoute(state) {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error(`Save failed with status ${response.status}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData && errorData.message
+        ? errorData.message
+        : 'Unable to save the route right now. Please try again.';
+      setEditorStatus(state, message);
+      return;
+    }
     const saved = await response.json();
-    setEditorStatus(state, `Route "${saved.name || name}" saved successfully.`);
+    setEditorStatus(state, `Route "${saved.name || generatedName}" saved successfully.`);
     state.mode = 'idle';
     state.path = [];
     state.snappedPath = [];
@@ -1532,6 +1901,9 @@ async function saveCurrentRoute(state) {
     updateDraftPolyline(state);
     updateSnappedPolyline(state);
     updateEditorControls(state);
+    if (routeEditorState && routeEditorState.savedRoutes) {
+      loadSavedRoutesForEditor(routeEditorState.savedRoutes, { silent: true, force: true });
+    }
   } catch (error) {
     console.error('Unable to save route', error);
     setEditorStatus(state, 'Unable to save the route right now. Please try again.');
@@ -1540,16 +1912,22 @@ async function saveCurrentRoute(state) {
   }
 }
 
-function buildStopsFromPath(path) {
+function buildStopsFromPath(path, names = {}) {
   if (!Array.isArray(path) || path.length === 0) return [];
   const stops = [];
   const first = path[0];
   const last = path[path.length - 1];
+  const startName = typeof names.startName === 'string' && names.startName.trim()
+    ? names.startName.trim()
+    : 'Point A';
+  const endName = typeof names.endName === 'string' && names.endName.trim()
+    ? names.endName.trim()
+    : 'Point B';
   if (first) {
-    stops.push({ name: 'Start', lat: first.lat, lng: first.lng });
+    stops.push({ name: startName, lat: first.lat, lng: first.lng });
   }
   if (last && (last.lat !== first.lat || last.lng !== first.lng)) {
-    stops.push({ name: 'End', lat: last.lat, lng: last.lng });
+    stops.push({ name: endName, lat: last.lat, lng: last.lng });
   }
   return stops;
 }
@@ -1560,7 +1938,7 @@ function setupRegistration() {
 
   form.dataset.registrationBound = 'true';
 
-  const roleSelect = form.querySelector('select[name="role"]');
+  const roleInputs = Array.from(form.querySelectorAll('input[name="roles"]'));
   const dynamicContainer = form.querySelector('[data-role-fields]');
   const errorElement = form.querySelector('[data-registration-error]');
   const successPanel = document.getElementById('registration-success');
@@ -1571,23 +1949,67 @@ function setupRegistration() {
   const logoutButton = document.querySelector('[data-logout-button]');
   const loginForm = document.querySelector('[data-login-form]');
   const loginError = loginForm ? loginForm.querySelector('[data-login-error]') : null;
+  const firstNameInput = form.querySelector('input[name="firstName"]');
+  const lastNameInput = form.querySelector('input[name="lastName"]');
+  const homeTownInput = form.querySelector('input[name="homeTown"]');
 
   const state = {
     ownerTaxiList: null,
+    selectedRoles: new Set(),
   };
+
+  function getSelectedRoles() {
+    return roleInputs.filter(input => input.checked).map(input => input.value);
+  }
+
+  function hasRole(roles, role) {
+    return roles.includes(role);
+  }
+
+  const ROLE_LABELS = {
+    'taxi-manager': 'Taxi Manager',
+    'taxi-owner': 'Taxi Owner',
+    'taxi-rider': 'Taxi Rider (Commuter)',
+    'rank-manager': 'Rank Manager',
+    collector: 'Collector',
+    'spaza-owner': 'Spaza Owner',
+    'monthly-subscriber': 'Monthly Subscriber',
+  };
+
+  function formatRoleList(roles) {
+    if (!Array.isArray(roles) || roles.length === 0) {
+      return 'account';
+    }
+    const mapped = roles
+      .map(role => ROLE_LABELS[role] || role.replace(/[-_]+/g, ' '))
+      .filter(Boolean);
+    if (mapped.length === 0) {
+      return 'account';
+    }
+    if (mapped.length === 1) {
+      return mapped[0];
+    }
+    const last = mapped[mapped.length - 1];
+    const initial = mapped.slice(0, -1);
+    return `${initial.join(', ')} and ${last}`;
+  }
 
   function updateAuthStatus(session = getAuthSession()) {
     const activeSession = session && typeof session === 'object' ? session : null;
     if (authStatus) {
       if (activeSession && activeSession.user) {
         const user = activeSession.user;
-        const username = user.username || '';
-        const nameValue = typeof user.name === 'string' && user.name.trim() ? user.name.trim() : '';
-        let summary = username || 'Signed-in user';
-        if (nameValue && (!username || nameValue.toLowerCase() !== username.toLowerCase())) {
-          summary = `${nameValue} (${username})`;
-        } else if (nameValue) {
-          summary = nameValue;
+        const username = typeof user.username === 'string' ? user.username : '';
+        const firstName = typeof user.firstName === 'string' ? user.firstName : '';
+        const lastName = typeof user.lastName === 'string' ? user.lastName : '';
+        const homeTown = typeof user.homeTown === 'string' ? user.homeTown : '';
+        const privateName = [firstName, lastName].filter(Boolean).join(' ').trim();
+        let summary = username || privateName || 'Signed-in user';
+        if (privateName && username && privateName.toLowerCase() !== username.toLowerCase()) {
+          summary = `${privateName} (${username})`;
+        }
+        if (homeTown) {
+          summary = `${summary} · ${homeTown}`;
         }
         authStatus.textContent = `Signed in as ${summary}`;
       } else {
@@ -1691,6 +2113,7 @@ function setupRegistration() {
         .catch(() => null)
         .finally(() => {
           clearAuthSession();
+          clearRouteContributor();
           logoutButton.disabled = false;
           showSuccess('You have signed out. Sign in again below to keep contributing routes.', []);
         });
@@ -1744,6 +2167,10 @@ function setupRegistration() {
           return;
         }
         setAuthSession({ token: data.token, user: data.user });
+        setRouteContributor({
+          username: typeof data.user.username === 'string' ? data.user.username : '',
+          homeTown: typeof data.user.homeTown === 'string' ? data.user.homeTown : '',
+        });
         loginForm.reset();
         const actions = [];
         const routeAdderLink = document.createElement('a');
@@ -1751,7 +2178,10 @@ function setupRegistration() {
         routeAdderLink.className = 'cta';
         routeAdderLink.textContent = 'Open Route Adder';
         actions.push(routeAdderLink);
-        showSuccess(`Welcome back ${data.user.name || data.user.username}! You're signed in.`, actions);
+        const greetingName = typeof data.user.firstName === 'string' && data.user.firstName.trim()
+          ? data.user.firstName.trim()
+          : data.user.username;
+        showSuccess(`Welcome back ${greetingName || 'there'}! You're signed in.`, actions);
       } catch (error) {
         console.error('Login failed', error);
         showLoginError('Unable to sign in right now. Please try again shortly.');
@@ -1857,12 +2287,15 @@ function setupRegistration() {
       .filter(Boolean);
   }
 
-  function renderRoleFields(role) {
+  function renderRoleFields(selectedRoles = []) {
     if (!dynamicContainer) return;
     dynamicContainer.innerHTML = '';
     state.ownerTaxiList = null;
 
-    if (role === 'driver') {
+    const roles = Array.isArray(selectedRoles) ? selectedRoles : [];
+    const rolesSet = new Set(roles);
+
+    if (rolesSet.has('taxi-manager')) {
       const note = document.createElement('div');
       note.className = 'registration-driver-note';
       note.innerHTML =
@@ -1873,14 +2306,13 @@ function setupRegistration() {
       vehicleLabel.textContent = 'Vehicle nickname or association (optional)';
       const vehicleInput = document.createElement('input');
       vehicleInput.type = 'text';
-      vehicleInput.name = 'driverVehicle';
+      vehicleInput.name = 'managerVehicle';
       vehicleInput.placeholder = 'e.g. Soweto — Sandton Quantum';
       vehicleLabel.appendChild(vehicleInput);
       dynamicContainer.appendChild(vehicleLabel);
-      return;
     }
 
-    if (role === 'owner') {
+    if (rolesSet.has('taxi-owner')) {
       const note = document.createElement('div');
       note.className = 'registration-driver-note';
       note.innerHTML =
@@ -1908,36 +2340,46 @@ function setupRegistration() {
       });
       actions.appendChild(addButton);
       dynamicContainer.appendChild(actions);
-      return;
     }
 
-    if (role === 'route-adder') {
+    const otherRoles = roles.filter(role => role !== 'taxi-manager' && role !== 'taxi-owner');
+    if (otherRoles.length) {
       const info = document.createElement('p');
       info.className = 'registration-feedback';
       info.textContent =
-        'Once registered and signed in, every saved route from the Route Adder will automatically tag your username.';
+        'Once approved, your username and hometown will appear on shared commuter tools.';
       dynamicContainer.appendChild(info);
-      return;
+    } else if (!rolesSet.size) {
+      const info = document.createElement('p');
+      info.className = 'registration-feedback';
+      info.textContent = 'Choose at least one role above to unlock tailored onboarding fields.';
+      dynamicContainer.appendChild(info);
     }
-
-    const info = document.createElement('p');
-    info.className = 'registration-feedback';
-    info.textContent =
-      'Complete your registration. Taxi drivers and owners unlock live tracking inside the Admin Route Finder.';
-    dynamicContainer.appendChild(info);
   }
 
-  function renderDriverSuccessPanel() {
+  function renderDriverSuccessPanel(selectedRoles = null) {
     const profile = getDriverProfile();
     if (!profile) return;
     const username = typeof profile.username === 'string' ? profile.username : '';
-    const nameLabel = typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
-    const identity = username && (!nameLabel || nameLabel.toLowerCase() !== username.toLowerCase())
-      ? `${nameLabel || 'Taxi driver'} (${username})`
-      : nameLabel || username || 'Taxi driver';
-    const message = profile.sharingEnabled
+    const displayName = typeof profile.displayName === 'string' && profile.displayName.trim()
+      ? profile.displayName.trim()
+      : '';
+    const identity = username || displayName || 'Taxi manager';
+    const resolvedRoles = Array.isArray(selectedRoles)
+      ? selectedRoles
+      : Array.isArray(profile.roles)
+      ? profile.roles
+      : [];
+    const rolesSet = new Set(resolvedRoles);
+    const messageBase = profile.sharingEnabled
       ? `${identity}, your live location is active. Refresh it whenever you need to update the Admin Route Finder.`
       : `Thanks ${identity}! Enable live location to appear on the Admin Route Finder.`;
+    let message = messageBase;
+    if (rolesSet.has('taxi-owner')) {
+      message = `${messageBase} Capture your fleet below to surface every taxi on the admin map.`;
+    } else if (rolesSet.size > 1) {
+      message = `${messageBase} Your ${formatRoleList(Array.from(rolesSet))} workspace is ready.`;
+    }
     const actions = [];
 
     const enableButton = document.createElement('button');
@@ -1956,7 +2398,7 @@ function setupRegistration() {
             successFeedback.textContent = 'Live location updated. Open the Admin Route Finder to view your marker.';
             successFeedback.classList.remove('error');
           }
-          renderDriverSuccessPanel();
+          renderDriverSuccessPanel(resolvedRoles);
         })
         .catch(error => {
           if (successFeedback) {
@@ -1976,20 +2418,69 @@ function setupRegistration() {
     showSuccess(message, actions);
   }
 
-  function renderOwnerSuccessPanel() {
+  function renderOwnerSuccessPanel(selectedRoles = null) {
     const profile = getOwnerProfile();
     if (!profile) return;
     const total = Array.isArray(profile.taxis) ? profile.taxis.length : 0;
     const username = typeof profile.username === 'string' ? profile.username : '';
-    const nameLabel = typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
-    const identity = username && (!nameLabel || nameLabel.toLowerCase() !== username.toLowerCase())
-      ? `${nameLabel || 'Taxi owner'} (${username})`
-      : nameLabel || username || 'Taxi owner';
-    const message =
+    const displayName = typeof profile.displayName === 'string' && profile.displayName.trim()
+      ? profile.displayName.trim()
+      : '';
+    const identity = username || displayName || 'Taxi owner';
+    const resolvedRoles = Array.isArray(selectedRoles)
+      ? selectedRoles
+      : Array.isArray(profile.roles)
+      ? profile.roles
+      : [];
+    const rolesSet = new Set(resolvedRoles);
+    let message =
       total > 0
         ? `${identity}, ${total} taxi${total === 1 ? '' : 's'} are ready to display on the Admin Route Finder.`
         : `${identity}, your profile is saved. Add taxis to manage their live visibility.`;
+    if (rolesSet.has('taxi-manager')) {
+      message = `${message} Enable the taxi manager tools when you are on the road to broadcast your live position.`;
+    } else if (rolesSet.size > 1) {
+      message = `${message} Your ${formatRoleList(Array.from(rolesSet))} profile is active.`;
+    }
     const actions = [];
+
+    if (rolesSet.has('taxi-manager')) {
+      const driverProfile = getDriverProfile();
+      if (driverProfile) {
+        const enableButton = document.createElement('button');
+        enableButton.type = 'button';
+        enableButton.className = 'cta';
+        enableButton.textContent = driverProfile.sharingEnabled
+          ? 'Refresh live location'
+          : 'Enable live location now';
+        enableButton.addEventListener('click', () => {
+          if (successFeedback) {
+            successFeedback.textContent = driverProfile.sharingEnabled
+              ? 'Refreshing your live position…'
+              : 'Requesting your current position…';
+            successFeedback.classList.remove('error');
+          }
+          const actionPromise = driverProfile.sharingEnabled
+            ? refreshDriverLocation()
+            : enableDriverLiveLocation();
+          actionPromise
+            .then(() => {
+              if (successFeedback) {
+                successFeedback.textContent = 'Live location updated. Open the Admin Route Finder to view your marker.';
+                successFeedback.classList.remove('error');
+              }
+              renderOwnerSuccessPanel(resolvedRoles);
+            })
+            .catch(error => {
+              if (successFeedback) {
+                successFeedback.textContent = error.message || 'Unable to update your location.';
+                successFeedback.classList.add('error');
+              }
+            });
+        });
+        actions.push(enableButton);
+      }
+    }
 
     const adminLink = document.createElement('a');
     adminLink.href = '/admin-route-finder.html';
@@ -2000,15 +2491,14 @@ function setupRegistration() {
     showSuccess(message, actions);
   }
 
-  function renderGenericSuccess(role, name, user) {
-    const normalizedRole = typeof role === 'string' && role.trim() ? role.trim() : 'account';
-    const readableRole = normalizedRole.replace(/[-_]+/g, ' ');
+  function renderGenericSuccess(roles, user) {
+    const roleSummary = formatRoleList(Array.isArray(roles) ? roles : []);
     const username = user && typeof user.username === 'string' ? user.username : '';
-    const nameLabel = typeof name === 'string' && name.trim() ? name.trim() : '';
-    const identity = username && (!nameLabel || nameLabel.toLowerCase() !== username.toLowerCase())
-      ? `${nameLabel || 'for registering'} (${username})`
-      : nameLabel || username || 'for registering';
-    const message = `Thanks ${identity}! We'll follow up with activation details for the ${readableRole} workspace. ${
+    const firstName = user && typeof user.firstName === 'string' && user.firstName.trim()
+      ? user.firstName.trim()
+      : '';
+    const greetingName = firstName || username || 'there';
+    const message = `Thanks ${greetingName}! Your ${roleSummary} profile is saved. ${
       username ? `You're signed in as ${username}.` : 'You are signed in and ready to explore the tools.'
     }`;
     const actions = [];
@@ -2020,13 +2510,20 @@ function setupRegistration() {
     showSuccess(message, actions);
   }
 
-  if (roleSelect) {
-    renderRoleFields(roleSelect.value || 'collector');
-    roleSelect.addEventListener('change', event => {
-      clearError();
-      resetSuccessPanel();
-      const nextRole = event.target ? event.target.value : 'collector';
-      renderRoleFields(nextRole || 'collector');
+  if (roleInputs.length) {
+    const initialRoles = getSelectedRoles();
+    state.selectedRoles = new Set(initialRoles);
+    renderRoleFields(initialRoles);
+    roleInputs.forEach(input => {
+      if (input.dataset.roleBound === 'true') return;
+      input.addEventListener('change', () => {
+        clearError();
+        resetSuccessPanel();
+        const nextRoles = getSelectedRoles();
+        state.selectedRoles = new Set(nextRoles);
+        renderRoleFields(nextRoles);
+      });
+      input.dataset.roleBound = 'true';
     });
   } else if (dynamicContainer) {
     dynamicContainer.innerHTML = '';
@@ -2047,7 +2544,24 @@ function setupRegistration() {
 
     try {
       const formData = new FormData(form);
-      const role = (formData.get('role') || 'collector').toString();
+      const selectedRoles = getSelectedRoles();
+      if (!selectedRoles.length) {
+        showError('Select at least one role to continue.');
+        return;
+      }
+
+      const firstName = (formData.get('firstName') || '').trim();
+      if (!firstName) {
+        showError('Enter your first name.');
+        return;
+      }
+
+      const lastName = (formData.get('lastName') || '').trim();
+      if (!lastName) {
+        showError('Enter your last name.');
+        return;
+      }
+
       const username = (formData.get('username') || '').trim();
       if (!username) {
         showError('Choose a username to manage your account.');
@@ -2060,14 +2574,14 @@ function setupRegistration() {
 
       const passwordRaw = formData.get('password');
       const passwordValue = typeof passwordRaw === 'string' ? passwordRaw : '';
-      if (!passwordValue || passwordValue.length < 6) {
-        showError('Passwords must be at least 6 characters long.');
+      if (!passwordValue || passwordValue.length < 4) {
+        showError('Passwords must be at least 4 characters long.');
         return;
       }
 
-      const name = (formData.get('name') || '').trim();
-      if (!name) {
-        showError('Please provide your full name so we can personalise your workspace.');
+      const homeTown = (formData.get('homeTown') || '').trim();
+      if (!homeTown) {
+        showError('Add your home town so commuters know where you operate.');
         return;
       }
 
@@ -2075,16 +2589,17 @@ function setupRegistration() {
       const phone = (formData.get('phone') || '').trim();
       const routes = (formData.get('routes') || '').trim();
 
-      let vehicle = '';
-      let ownerTaxis = [];
       const metadata = {};
-
-      if (role === 'driver') {
-        vehicle = (formData.get('driverVehicle') || '').trim();
-        if (vehicle) {
-          metadata.vehicle = vehicle;
+      let managerVehicle = '';
+      if (selectedRoles.includes('taxi-manager')) {
+        managerVehicle = (formData.get('managerVehicle') || '').trim();
+        if (managerVehicle) {
+          metadata.managerVehicle = managerVehicle;
         }
-      } else if (role === 'owner') {
+      }
+
+      let ownerTaxis = [];
+      if (selectedRoles.includes('taxi-owner')) {
         ownerTaxis = collectOwnerTaxiEntries();
         if (!ownerTaxis.length) {
           showError('Add at least one taxi so that your fleet can appear on the Admin Route Finder.');
@@ -2096,8 +2611,10 @@ function setupRegistration() {
       const payload = {
         username,
         password: passwordValue,
-        role,
-        name,
+        firstName,
+        lastName,
+        homeTown,
+        roles: selectedRoles,
         email,
         phone,
         routes,
@@ -2123,51 +2640,90 @@ function setupRegistration() {
         return;
       }
 
-      setAuthSession({ token: data.token, user: data.user });
+      const registeredUser = data.user;
+      const registeredRoles = Array.isArray(registeredUser.roles) && registeredUser.roles.length
+        ? registeredUser.roles
+        : selectedRoles;
+      state.selectedRoles = new Set(registeredRoles);
 
-      if (role === 'driver') {
+      setAuthSession({ token: data.token, user: registeredUser });
+      setRouteContributor({
+        username: typeof registeredUser.username === 'string' ? registeredUser.username : username,
+        homeTown: typeof registeredUser.homeTown === 'string' ? registeredUser.homeTown : homeTown,
+      });
+
+      const responseFirstName =
+        typeof registeredUser.firstName === 'string' && registeredUser.firstName.trim()
+          ? registeredUser.firstName.trim()
+          : firstName;
+      const responseLastName =
+        typeof registeredUser.lastName === 'string' && registeredUser.lastName.trim()
+          ? registeredUser.lastName.trim()
+          : lastName;
+      const contributorHomeTown =
+        typeof registeredUser.homeTown === 'string' && registeredUser.homeTown.trim()
+          ? registeredUser.homeTown.trim()
+          : homeTown;
+      const displayName = [responseFirstName, responseLastName].filter(Boolean).join(' ').trim();
+
+      const baseProfile = {
+        displayName,
+        name: displayName,
+        firstName: responseFirstName,
+        lastName: responseLastName,
+        email,
+        phone,
+        routes,
+        homeTown: contributorHomeTown,
+        username: registeredUser.username,
+        accountId: registeredUser.id,
+        roles: registeredRoles,
+        timestamp: Date.now(),
+      };
+
+      const hasManagerRole = registeredRoles.includes('taxi-manager');
+      const hasOwnerRole = registeredRoles.includes('taxi-owner');
+
+      if (hasManagerRole) {
         const profile = {
-          id: generateId('driver'),
-          role,
-          name,
-          email,
-          phone,
-          routes,
-          vehicle,
+          ...baseProfile,
+          id: generateId('manager'),
+          role: 'taxi-manager',
+          vehicle: managerVehicle,
           sharingEnabled: false,
           lastKnownLocation: null,
-          timestamp: Date.now(),
-          username: data.user.username,
-          accountId: data.user.id,
         };
         setDriverProfile(profile);
-        renderDriverSuccessPanel();
-      } else if (role === 'owner') {
+      } else {
+        setDriverProfile(null);
+      }
+
+      if (hasOwnerRole) {
         const profile = {
+          ...baseProfile,
           id: generateId('owner'),
-          role,
-          name,
-          email,
-          phone,
-          routes,
+          role: 'taxi-owner',
           taxis: ownerTaxis,
-          timestamp: Date.now(),
-          username: data.user.username,
-          accountId: data.user.id,
         };
         setOwnerProfile(profile);
-        renderOwnerSuccessPanel();
       } else {
-        renderGenericSuccess(role, name, data.user);
+        setOwnerProfile(null);
+      }
+
+      if (hasOwnerRole) {
+        renderOwnerSuccessPanel(registeredRoles);
+      } else if (hasManagerRole) {
+        renderDriverSuccessPanel(registeredRoles);
+      } else {
+        renderGenericSuccess(registeredRoles, registeredUser);
       }
 
       form.reset();
-      if (roleSelect) {
-        roleSelect.value = role;
-        renderRoleFields(role);
-      } else {
-        renderRoleFields('collector');
-      }
+      roleInputs.forEach(input => {
+        input.checked = false;
+      });
+      state.selectedRoles = new Set();
+      renderRoleFields([]);
     } catch (error) {
       console.error('Failed to submit registration', error);
       showError('We could not submit your registration right now. Please try again.');
@@ -2181,10 +2737,12 @@ function setupRegistration() {
 
   const storedDriver = getDriverProfile();
   const storedOwner = getOwnerProfile();
-  if (storedDriver) {
-    renderDriverSuccessPanel();
-  } else if (storedOwner) {
-    renderOwnerSuccessPanel();
+  if (storedOwner) {
+    const roles = Array.isArray(storedOwner.roles) ? storedOwner.roles : [];
+    renderOwnerSuccessPanel(roles);
+  } else if (storedDriver) {
+    const roles = Array.isArray(storedDriver.roles) ? storedDriver.roles : [];
+    renderDriverSuccessPanel(roles);
   }
 }
 
@@ -2523,8 +3081,9 @@ function normalizeRouteRecord(rawRoute) {
     ? {
         name: typeof rawRoute.addedBy.name === 'string' ? rawRoute.addedBy.name : '',
         username: typeof rawRoute.addedBy.username === 'string' ? rawRoute.addedBy.username : '',
+        homeTown: typeof rawRoute.addedBy.homeTown === 'string' ? rawRoute.addedBy.homeTown : '',
       }
-    : { name: '', username: '' };
+    : { name: '', username: '', homeTown: '' };
   const createdAt = typeof rawRoute.createdAt === 'string' ? rawRoute.createdAt : '';
   const updatedAt = typeof rawRoute.updatedAt === 'string' ? rawRoute.updatedAt : '';
 
@@ -2641,10 +3200,15 @@ function renderRouteDetails(route, options = {}) {
   const gestureText = route.gesture ? escapeHtml(route.gesture) : 'Not specified';
   const stopsMarkup = buildStopsMarkup(route.stops);
   const variationsCount = Array.isArray(route.variations) ? route.variations.length : 0;
-  const contributor = route.addedBy && (route.addedBy.name || route.addedBy.username)
-    ? route.addedBy.name || route.addedBy.username
-    : '';
-  const contributorMarkup = contributor ? `<li><strong>Added by:</strong> ${escapeHtml(contributor)}</li>` : '';
+  const contributorUsername = route.addedBy && route.addedBy.username ? route.addedBy.username : '';
+  const contributorHomeTown = route.addedBy && route.addedBy.homeTown ? route.addedBy.homeTown : '';
+  let contributorMarkup = '';
+  if (contributorUsername || contributorHomeTown) {
+    const contributorSummary = contributorHomeTown
+      ? `${escapeHtml(contributorUsername || 'Registered contributor')} · ${escapeHtml(contributorHomeTown)}`
+      : escapeHtml(contributorUsername);
+    contributorMarkup = `<li><strong>Added by:</strong> ${contributorSummary}</li>`;
+  }
   const createdAtText = formatTimestamp(route.createdAt);
   const updatedAtText = formatTimestamp(route.updatedAt);
   const createdAtMarkup = createdAtText ? `<li><strong>Captured:</strong> ${escapeHtml(createdAtText)}</li>` : '';
@@ -2871,7 +3435,7 @@ function renderAdminDriverSection() {
 
   if (!profile) {
     if (driverStatus) {
-      driverStatus.textContent = 'Register as a taxi driver to manage live visibility here.';
+    driverStatus.textContent = 'Register as a taxi manager to manage live visibility here.';
     }
     if (driverEnableButton) {
       driverEnableButton.disabled = true;
@@ -2888,8 +3452,8 @@ function renderAdminDriverSection() {
 
   if (driverStatus) {
     driverStatus.textContent = profile.sharingEnabled
-      ? `${profile.name || 'Taxi driver'} is broadcasting a live location. Refresh to capture the latest point.`
-      : `${profile.name || 'Taxi driver'} is registered but live location is disabled.`;
+      ? `${profile.name || 'Taxi manager'} is broadcasting a live location. Refresh to capture the latest point.`
+      : `${profile.name || 'Taxi manager'} is registered but live location is disabled.`;
   }
 
   if (driverEnableButton) {
@@ -2925,7 +3489,7 @@ function handleDriverEnableToggle() {
   const profile = getDriverProfile();
   if (!profile) {
     if (driverFeedback) {
-      driverFeedback.textContent = 'No taxi driver registration found. Submit the driver form first.';
+      driverFeedback.textContent = 'No taxi manager registration found. Submit the manager form first.';
       driverFeedback.classList.add('error');
     }
     return;
@@ -3104,7 +3668,7 @@ function updateAdminMarkers() {
       const driverMarker = new google.maps.Marker({
         map,
         position: { lat, lng },
-        title: `${driverProfile.name || 'Taxi driver'} (live)`,
+        title: `${driverProfile.name || 'Taxi manager'} (live)`,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 9,
