@@ -761,6 +761,28 @@ function bindOverlayDragging(overlay) {
   const handle = overlay.querySelector('[data-drag-handle]') || overlay;
   if (!handle) return;
 
+  try {
+    const computedStyle = window.getComputedStyle(overlay);
+    if (computedStyle) {
+      if (computedStyle.position === 'static') {
+        const rect = overlay.getBoundingClientRect();
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${Math.round(rect.left)}px`;
+        overlay.style.top = `${Math.round(rect.top)}px`;
+        overlay.style.right = 'auto';
+        overlay.style.bottom = 'auto';
+        overlay.style.transform = 'none';
+      }
+
+      const zIndex = Number.parseInt(computedStyle.zIndex, 10);
+      if (!Number.isFinite(zIndex) || zIndex < 1) {
+        overlay.style.zIndex = '960';
+      }
+    }
+  } catch (error) {
+    // non-blocking: styling hints best-effort only
+  }
+
   const handlePointerDown = event => {
     if (event.pointerType === 'mouse' && event.button !== 0) {
       return;
