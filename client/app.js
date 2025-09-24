@@ -5,6 +5,7 @@ let routeFinderState;
 let adminRouteFinderState;
 let overlayBodyIdCounter = 0;
 let routeSaveDialogState;
+let accountDropdownState;
 
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
@@ -12,6 +13,36 @@ const STORAGE_KEYS = {
   authSession: 'itaxiFinderAuthSession',
   routeContributor: 'itaxiFinderRouteContributor',
 };
+
+const ROLE_LABELS = Object.freeze({
+  'taxi-manager': 'Taxi Manager',
+  'taxi-owner': 'Taxi Owner',
+  'taxi-rider': 'Taxi Rider (Commuter)',
+  'rank-manager': 'Rank Manager',
+  collector: 'Collector',
+  'spaza-owner': 'Spaza Owner',
+  'monthly-subscriber': 'Monthly Subscriber',
+});
+
+function formatRoleSummary(roles, fallback = 'account') {
+  if (!Array.isArray(roles) || roles.length === 0) {
+    return fallback;
+  }
+  const mapped = roles
+    .map(role => (typeof role === 'string' ? role.trim().toLowerCase() : ''))
+    .filter(Boolean)
+    .map(role => ROLE_LABELS[role] || role.replace(/[-_]+/g, ' '))
+    .filter(Boolean);
+  if (!mapped.length) {
+    return fallback;
+  }
+  if (mapped.length === 1) {
+    return mapped[0];
+  }
+  const last = mapped[mapped.length - 1];
+  const initial = mapped.slice(0, -1);
+  return `${initial.join(', ')} and ${last}`;
+}
 
 function safeStorageGet(key, fallback = null) {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -191,6 +222,33 @@ function clearRouteContributor() {
   setRouteContributor(null);
 }
 
+function attachLogoutHandler(button, { onComplete } = {}) {
+  if (!button || button.dataset.logoutBound === 'true') return;
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    fetch('/api/users/logout', {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+      .catch(() => null)
+      .finally(() => {
+        clearAuthSession();
+        clearRouteContributor();
+        button.disabled = false;
+        if (typeof onComplete === 'function') {
+          try {
+            onComplete();
+          } catch (error) {
+            console.error('Logout completion handler failed', error);
+          }
+        }
+      });
+  });
+  button.dataset.logoutBound = 'true';
+}
+
 function requestCurrentPosition() {
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -327,6 +385,7 @@ async function init() {
     });
 
     setupResponsiveNavigation();
+    setupAccountDropdown();
     applyLayoutOffsets(getControlOffset());
     setupDraggableOverlays();
 
@@ -530,6 +589,7 @@ function setupResponsiveNavigation() {
   const setNavState = open => {
     const isDesktop = navMediaQuery.matches;
     const shouldOpen = Boolean(open) && !isDesktop;
+    closeAccountMenu();
     topbar.dataset.navOpen = shouldOpen ? 'true' : 'false';
     toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
     if (isDesktop) {
@@ -576,6 +636,293 @@ function setupResponsiveNavigation() {
   } else if (typeof navMediaQuery.addListener === 'function') {
     navMediaQuery.addListener(handleBreakpointChange);
   }
+}
+
+function setAccountMenuOpen(state, open) {
+  if (!state) return;
+  const isOpen = Boolean(open);
+  state.isOpen = isOpen;
+  if (state.toggle) {
+    state.toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  }
+  if (state.menu) {
+    state.menu.hidden = !isOpen;
+  }
+  if (state.container) {
+    state.container.classList.toggle('topbar__account--open', isOpen);
+  }
+}
+
+function closeAccountMenu() {
+  if (!accountDropdownState || !accountDropdownState.isOpen) return;
+  setAccountMenuOpen(accountDropdownState, false);
+}
+
+function openAccountMenu(options = {}) {
+  const state = setupAccountDropdown();
+  if (!state) {
+    if (options.redirect !== false) {
+      window.location.href = '/registration.html#login';
+    }
+    return null;
+  }
+  setAccountMenuOpen(state, true);
+  const focusPreference = options.focus || (getAuthSession() && getAuthSession().user ? 'manage' : 'signin');
+  let focusTarget = null;
+  if (focusPreference === 'manage') {
+    focusTarget = state.manageLink || state.signInLink;
+  } else if (focusPreference === 'signin') {
+    focusTarget = state.signInLink || state.registerLink;
+  } else if (focusPreference instanceof HTMLElement) {
+    focusTarget = focusPreference;
+  }
+  const fallback = focusTarget || state.toggle;
+  if (fallback && typeof fallback.focus === 'function') {
+    requestAnimationFrame(() => fallback.focus({ preventScroll: true }));
+  }
+  return state;
+}
+
+function updateAccountDropdown(session = getAuthSession()) {
+  if (!accountDropdownState) return;
+  const state = accountDropdownState;
+  const user = session && session.user ? session.user : null;
+  const {
+    container,
+    toggle,
+    label,
+    summary,
+    detailsList,
+    detailFields,
+    signInLink,
+    registerLink,
+    manageLink,
+    signOutButton,
+  } = state;
+
+  if (!label || !summary || !signInLink || !registerLink || !manageLink || !signOutButton) {
+    return;
+  }
+
+  if (user) {
+    const username = typeof user.username === 'string' ? user.username.trim() : '';
+    const firstName = typeof user.firstName === 'string' ? user.firstName.trim() : '';
+    const lastName = typeof user.lastName === 'string' ? user.lastName.trim() : '';
+    const homeTown = typeof user.homeTown === 'string' ? user.homeTown.trim() : '';
+    const email = typeof user.email === 'string' ? user.email.trim() : '';
+    const phone = typeof user.phone === 'string' ? user.phone.trim() : '';
+    const roles = Array.isArray(user.roles) ? user.roles : [];
+    const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const displayLabel = username || name || 'Account';
+    const truncated = displayLabel.length > 22 ? `${displayLabel.slice(0, 21)}…` : displayLabel;
+    label.textContent = truncated || 'Account';
+
+    let summaryText = '';
+    if (name) {
+      summaryText = name;
+    }
+    if (username && (!name || name.toLowerCase() !== username.toLowerCase())) {
+      summaryText = summaryText ? `${summaryText} (${username})` : username;
+    }
+    if (homeTown) {
+      summaryText = summaryText ? `${summaryText} · ${homeTown}` : homeTown;
+    }
+    summary.textContent = summaryText || 'Signed in to iTaxi-Finder.';
+
+    if (detailsList && detailFields) {
+      detailsList.hidden = false;
+      if (detailFields.username) detailFields.username.textContent = username || '—';
+      if (detailFields.name) detailFields.name.textContent = name || '—';
+      if (detailFields.hometown) detailFields.hometown.textContent = homeTown || '—';
+      if (detailFields.roles) detailFields.roles.textContent = formatRoleSummary(roles, 'No roles selected');
+      if (detailFields.email) detailFields.email.textContent = email || '—';
+      if (detailFields.phone) detailFields.phone.textContent = phone || '—';
+      if (detailFields.lastLogin) {
+        const lastLogin = typeof user.lastLoginAt === 'string' ? new Date(user.lastLoginAt) : null;
+        detailFields.lastLogin.textContent = lastLogin && !Number.isNaN(lastLogin.valueOf())
+          ? lastLogin.toLocaleString('en-ZA')
+          : '—';
+      }
+    }
+
+    manageLink.hidden = false;
+    signOutButton.hidden = false;
+    signOutButton.disabled = false;
+    signInLink.hidden = true;
+    registerLink.hidden = true;
+    if (toggle) {
+      toggle.setAttribute('aria-label', `Account menu for ${displayLabel}`);
+    }
+    if (container) {
+      container.classList.add('topbar__account--authenticated');
+    }
+  } else {
+    label.textContent = 'Account';
+    summary.textContent = 'Sign in to manage your taxi network profile.';
+    if (detailsList) {
+      detailsList.hidden = true;
+    }
+    manageLink.hidden = true;
+    signOutButton.hidden = true;
+    signOutButton.disabled = true;
+    signInLink.hidden = false;
+    registerLink.hidden = false;
+    if (toggle) {
+      toggle.setAttribute('aria-label', 'Open account menu');
+    }
+    if (container) {
+      container.classList.remove('topbar__account--authenticated');
+    }
+  }
+}
+
+function setupAccountDropdown() {
+  if (accountDropdownState) return accountDropdownState;
+  const topbar = document.getElementById('topbar');
+  if (!topbar) return null;
+
+  const container = document.createElement('div');
+  container.className = 'topbar__account';
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'topbar__account-toggle';
+  toggle.setAttribute('aria-haspopup', 'true');
+  toggle.setAttribute('aria-expanded', 'false');
+
+  const label = document.createElement('span');
+  label.className = 'topbar__account-label';
+  label.textContent = 'Account';
+
+  const caret = document.createElement('span');
+  caret.className = 'topbar__account-caret';
+  caret.setAttribute('aria-hidden', 'true');
+  caret.textContent = '▾';
+
+  toggle.append(label, caret);
+
+  const menu = document.createElement('div');
+  menu.className = 'topbar__account-menu';
+  const menuId = `account-menu-${++overlayBodyIdCounter}`;
+  menu.id = menuId;
+  toggle.setAttribute('aria-controls', menuId);
+  menu.hidden = true;
+
+  const summary = document.createElement('p');
+  summary.className = 'topbar__account-summary';
+  summary.textContent = 'Sign in to manage your taxi network profile.';
+
+  const detailsList = document.createElement('dl');
+  detailsList.className = 'topbar__account-details';
+  detailsList.hidden = true;
+
+  const createDetail = (labelText, key) => {
+    const term = document.createElement('dt');
+    term.textContent = labelText;
+    const value = document.createElement('dd');
+    value.dataset.accountField = key;
+    value.textContent = '—';
+    detailsList.append(term, value);
+    return value;
+  };
+
+  const detailFields = {
+    name: createDetail('Name', 'name'),
+    username: createDetail('Username', 'username'),
+    hometown: createDetail('Home town', 'hometown'),
+    roles: createDetail('Roles', 'roles'),
+    email: createDetail('Email', 'email'),
+    phone: createDetail('Phone', 'phone'),
+    lastLogin: createDetail('Last active', 'lastLogin'),
+  };
+
+  const actions = document.createElement('div');
+  actions.className = 'topbar__account-actions';
+
+  const signInLink = document.createElement('a');
+  signInLink.href = '/registration.html#login';
+  signInLink.className = 'topbar__account-link';
+  signInLink.textContent = 'Sign in';
+
+  const registerLink = document.createElement('a');
+  registerLink.href = '/registration.html';
+  registerLink.className = 'topbar__account-link';
+  registerLink.textContent = 'Create account';
+
+  const manageLink = document.createElement('a');
+  manageLink.href = '/registration.html';
+  manageLink.className = 'topbar__account-link';
+  manageLink.textContent = 'Manage account';
+  manageLink.hidden = true;
+
+  const signOutButton = document.createElement('button');
+  signOutButton.type = 'button';
+  signOutButton.className = 'topbar__account-signout';
+  signOutButton.textContent = 'Sign out';
+  signOutButton.hidden = true;
+
+  actions.append(signInLink, registerLink, manageLink, signOutButton);
+
+  menu.append(summary, detailsList, actions);
+  container.append(toggle, menu);
+  topbar.appendChild(container);
+
+  accountDropdownState = {
+    container,
+    toggle,
+    menu,
+    label,
+    summary,
+    detailsList,
+    detailFields,
+    signInLink,
+    registerLink,
+    manageLink,
+    signOutButton,
+    isOpen: false,
+  };
+
+  attachLogoutHandler(signOutButton, { onComplete: () => closeAccountMenu() });
+
+  toggle.addEventListener('click', () => {
+    const willOpen = !accountDropdownState.isOpen;
+    setAccountMenuOpen(accountDropdownState, willOpen);
+    if (willOpen) {
+      const focusTarget = getAuthSession() && getAuthSession().user
+        ? accountDropdownState.manageLink
+        : accountDropdownState.signInLink;
+      const fallback = focusTarget || accountDropdownState.toggle;
+      if (fallback && typeof fallback.focus === 'function') {
+        requestAnimationFrame(() => fallback.focus({ preventScroll: true }));
+      }
+    }
+  });
+
+  document.addEventListener('click', event => {
+    if (!accountDropdownState || !accountDropdownState.isOpen) return;
+    if (accountDropdownState.container && accountDropdownState.container.contains(event.target)) {
+      return;
+    }
+    setAccountMenuOpen(accountDropdownState, false);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && accountDropdownState && accountDropdownState.isOpen) {
+      setAccountMenuOpen(accountDropdownState, false);
+      if (accountDropdownState.toggle && typeof accountDropdownState.toggle.focus === 'function') {
+        accountDropdownState.toggle.focus({ preventScroll: true });
+      }
+    }
+  });
+
+  document.addEventListener('authchange', event => {
+    const session = event && event.detail ? event.detail.session : null;
+    updateAccountDropdown(session);
+  });
+
+  updateAccountDropdown(getAuthSession());
+
+  return accountDropdownState;
 }
 
 function getOverlayLabel(overlay) {
@@ -1507,6 +1854,17 @@ function handleRouteEditorAction(action) {
 
   const handler = handlers[action];
   if (typeof handler === 'function') {
+    if (action === 'draw') {
+      const session = getAuthSession();
+      if (!session || !session.user) {
+        setEditorStatus(routeEditorState, 'Sign in to draw and save taxi routes. Use the account menu above to log in.');
+        updateEditorControls(routeEditorState);
+        if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+          window.location.href = '/registration.html#login';
+        }
+        return;
+      }
+    }
     handler(routeEditorState);
   }
 }
@@ -1901,34 +2259,6 @@ function setupRegistration() {
     return roles.includes(role);
   }
 
-  const ROLE_LABELS = {
-    'taxi-manager': 'Taxi Manager',
-    'taxi-owner': 'Taxi Owner',
-    'taxi-rider': 'Taxi Rider (Commuter)',
-    'rank-manager': 'Rank Manager',
-    collector: 'Collector',
-    'spaza-owner': 'Spaza Owner',
-    'monthly-subscriber': 'Monthly Subscriber',
-  };
-
-  function formatRoleList(roles) {
-    if (!Array.isArray(roles) || roles.length === 0) {
-      return 'account';
-    }
-    const mapped = roles
-      .map(role => ROLE_LABELS[role] || role.replace(/[-_]+/g, ' '))
-      .filter(Boolean);
-    if (mapped.length === 0) {
-      return 'account';
-    }
-    if (mapped.length === 1) {
-      return mapped[0];
-    }
-    const last = mapped[mapped.length - 1];
-    const initial = mapped.slice(0, -1);
-    return `${initial.join(', ')} and ${last}`;
-  }
-
   function updateAuthStatus(session = getAuthSession()) {
     const activeSession = session && typeof session === 'object' ? session : null;
     if (authStatus) {
@@ -2036,25 +2366,11 @@ function setupRegistration() {
     form.dataset.authListenerBound = 'true';
   }
 
-  if (logoutButton && !logoutButton.dataset.logoutBound) {
-    logoutButton.addEventListener('click', () => {
-      logoutButton.disabled = true;
-      fetch('/api/users/logout', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-        },
-      })
-        .catch(() => null)
-        .finally(() => {
-          clearAuthSession();
-          clearRouteContributor();
-          logoutButton.disabled = false;
-          showSuccess('You have signed out. Sign in again below to keep contributing routes.', []);
-        });
-    });
-    logoutButton.dataset.logoutBound = 'true';
-  }
+  attachLogoutHandler(logoutButton, {
+    onComplete: () => {
+      showSuccess('You have signed out. Sign in again below to keep contributing routes.', []);
+    },
+  });
 
   if (loginForm && !loginForm.dataset.loginBound) {
     loginForm.addEventListener('submit', async event => {
@@ -2313,7 +2629,7 @@ function setupRegistration() {
     if (rolesSet.has('taxi-owner')) {
       message = `${messageBase} Capture your fleet below to surface every taxi on the admin map.`;
     } else if (rolesSet.size > 1) {
-      message = `${messageBase} Your ${formatRoleList(Array.from(rolesSet))} workspace is ready.`;
+      message = `${messageBase} Your ${formatRoleSummary(Array.from(rolesSet), 'account')} workspace is ready.`;
     }
     const actions = [];
 
@@ -2375,7 +2691,7 @@ function setupRegistration() {
     if (rolesSet.has('taxi-manager')) {
       message = `${message} Enable the taxi manager tools when you are on the road to broadcast your live position.`;
     } else if (rolesSet.size > 1) {
-      message = `${message} Your ${formatRoleList(Array.from(rolesSet))} profile is active.`;
+      message = `${message} Your ${formatRoleSummary(Array.from(rolesSet), 'account')} profile is active.`;
     }
     const actions = [];
 
@@ -2427,7 +2743,7 @@ function setupRegistration() {
   }
 
   function renderGenericSuccess(roles, user) {
-    const roleSummary = formatRoleList(Array.isArray(roles) ? roles : []);
+    const roleSummary = formatRoleSummary(Array.isArray(roles) ? roles : [], 'account');
     const username = user && typeof user.username === 'string' ? user.username : '';
     const firstName = user && typeof user.firstName === 'string' && user.firstName.trim()
       ? user.firstName.trim()
