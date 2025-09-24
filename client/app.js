@@ -5,7 +5,6 @@ let routeFinderState;
 let adminRouteFinderState;
 let overlayBodyIdCounter = 0;
 let routeSaveDialogState;
-let routeContributorState;
 
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
@@ -156,6 +155,13 @@ function normalizeContributor(data = {}) {
   return { username, homeTown };
 }
 
+function contributorHasDetails(contributor) {
+  if (!contributor) return false;
+  const username = typeof contributor.username === 'string' ? contributor.username.trim() : '';
+  const homeTown = typeof contributor.homeTown === 'string' ? contributor.homeTown.trim() : '';
+  return Boolean(username || homeTown);
+}
+
 function getRouteContributor() {
   const stored = safeStorageGet(STORAGE_KEYS.routeContributor, null);
   if (!stored) return null;
@@ -170,18 +176,12 @@ function setRouteContributor(contributor) {
   const normalized = normalizeContributor(contributor);
   if (!normalized.username && !normalized.homeTown) {
     safeStorageRemove(STORAGE_KEYS.routeContributor);
-    if (routeContributorState && typeof routeContributorState.setValues === 'function') {
-      routeContributorState.setValues({ username: '', homeTown: '' });
-    }
     if (routeEditorState) {
       routeEditorState.contributor = { username: '', homeTown: '' };
     }
     return;
   }
   safeStorageSet(STORAGE_KEYS.routeContributor, normalized);
-  if (routeContributorState && typeof routeContributorState.setValues === 'function') {
-    routeContributorState.setValues(normalized, { preserveFeedback: true });
-  }
   if (routeEditorState) {
     routeEditorState.contributor = { ...normalized };
   }
@@ -860,134 +860,6 @@ function setupDraggableOverlays() {
   });
 }
 
-function setupRouteContributorPanel() {
-  const panel = document.getElementById('route-contributor-panel');
-  if (!panel) return;
-  if (panel.dataset.contributorBound === 'true') {
-    if (!routeContributorState) {
-      const usernameInput = panel.querySelector('[data-route-contributor-username]');
-      const homeTownInput = panel.querySelector('[data-route-contributor-hometown]');
-      const feedback = panel.querySelector('[data-route-contributor-feedback]');
-      routeContributorState = {
-        panel,
-        usernameInput,
-        homeTownInput,
-        feedback,
-        setValues(contributor, options = {}) {
-          const normalized = normalizeContributor(contributor);
-          if (this.usernameInput) this.usernameInput.value = normalized.username;
-          if (this.homeTownInput) this.homeTownInput.value = normalized.homeTown;
-          if (!options.preserveFeedback && this.feedback) {
-            this.feedback.textContent = '';
-            this.feedback.classList.remove('error');
-          }
-          this.currentContributor = normalized;
-        },
-        showFeedback(message, isError = false) {
-          if (!this.feedback) return;
-          this.feedback.textContent = message;
-          this.feedback.classList.toggle('error', Boolean(isError));
-        },
-        currentContributor: normalizeContributor(),
-      };
-    }
-    return;
-  }
-
-  const form = panel.querySelector('[data-route-contributor-form]');
-  const usernameInput = panel.querySelector('[data-route-contributor-username]');
-  const homeTownInput = panel.querySelector('[data-route-contributor-hometown]');
-  const feedback = panel.querySelector('[data-route-contributor-feedback]');
-
-  routeContributorState = {
-    panel,
-    form,
-    usernameInput,
-    homeTownInput,
-    feedback,
-    setValues(contributor, options = {}) {
-      const normalized = normalizeContributor(contributor);
-      if (this.usernameInput) this.usernameInput.value = normalized.username;
-      if (this.homeTownInput) this.homeTownInput.value = normalized.homeTown;
-      if (!options.preserveFeedback && this.feedback) {
-        this.feedback.textContent = '';
-        this.feedback.classList.remove('error');
-      }
-      this.currentContributor = normalized;
-    },
-    showFeedback(message, isError = false) {
-      if (!this.feedback) return;
-      this.feedback.textContent = message;
-      this.feedback.classList.toggle('error', Boolean(isError));
-    },
-    currentContributor: normalizeContributor(),
-  };
-
-  const sessionUser = getLoggedInUser();
-  const storedContributor = getRouteContributor();
-  const sessionContributor = sessionUser
-    ? normalizeContributor({ username: sessionUser.username, homeTown: sessionUser.homeTown })
-    : null;
-  const defaults = storedContributor || sessionContributor || normalizeContributor();
-  routeContributorState.setValues(defaults, { preserveFeedback: true });
-  if (defaults.username || defaults.homeTown) {
-    setRouteContributor(defaults);
-  }
-
-  if (form && !form.dataset.routeContributorBound) {
-    form.addEventListener('submit', event => {
-      event.preventDefault();
-      if (!routeContributorState) return;
-      const username = routeContributorState.usernameInput
-        ? routeContributorState.usernameInput.value.trim()
-        : '';
-      const homeTown = routeContributorState.homeTownInput
-        ? routeContributorState.homeTownInput.value.trim()
-        : '';
-
-      if (!username) {
-        routeContributorState.showFeedback('Enter the custom username you registered with.', true);
-        if (routeContributorState.usernameInput) {
-          routeContributorState.usernameInput.focus();
-        }
-        return;
-      }
-
-      if (!homeTown) {
-        routeContributorState.showFeedback('Enter the home town saved on your account.', true);
-        if (routeContributorState.homeTownInput) {
-          routeContributorState.homeTownInput.focus();
-        }
-        return;
-      }
-
-      const contributor = { username, homeTown };
-      setRouteContributor(contributor);
-      routeContributorState.showFeedback('Contributor details saved. We will verify them when you store a route.');
-    });
-    form.dataset.routeContributorBound = 'true';
-  }
-
-  if (!panel.dataset.contributorAuthBound) {
-    document.addEventListener('authchange', () => {
-      const activeUser = getLoggedInUser();
-      if (activeUser) {
-        const contributor = normalizeContributor({
-          username: activeUser.username,
-          homeTown: activeUser.homeTown,
-        });
-        setRouteContributor(contributor);
-        if (routeContributorState) {
-          routeContributorState.setValues(contributor, { preserveFeedback: true });
-        }
-      }
-    });
-    panel.dataset.contributorAuthBound = 'true';
-  }
-
-  panel.dataset.contributorBound = 'true';
-}
-
 function setupSavedRoutesManager() {
   const panel = document.getElementById('saved-routes-panel');
   if (!panel) return null;
@@ -1500,6 +1372,17 @@ function setupRouteAdder(map) {
     exit: tools.querySelector('[data-editor-action="exit"]'),
   };
 
+  const storedContributor = getRouteContributor();
+  const activeUser = getLoggedInUser();
+  const sessionContributor = activeUser
+    ? normalizeContributor({ username: activeUser.username, homeTown: activeUser.homeTown })
+    : null;
+  const initialContributor = contributorHasDetails(storedContributor)
+    ? normalizeContributor(storedContributor)
+    : sessionContributor && contributorHasDetails(sessionContributor)
+      ? sessionContributor
+      : normalizeContributor();
+
   routeEditorState = {
     map,
     tools,
@@ -1513,7 +1396,7 @@ function setupRouteAdder(map) {
     redoStack: [],
     pathListeners: [],
     savedRoutes: null,
-    contributor: normalizeContributor(getRouteContributor() || {}),
+    contributor: initialContributor,
     lastSaveDetails: null,
     polyline: new google.maps.Polyline({
       map,
@@ -1546,12 +1429,15 @@ function setupRouteAdder(map) {
     mapClickListener: null,
   };
 
+  if (contributorHasDetails(initialContributor)) {
+    setRouteContributor(initialContributor);
+  }
+
   const savedRoutesState = setupSavedRoutesManager();
   if (savedRoutesState) {
     routeEditorState.savedRoutes = savedRoutesState;
   }
 
-  setupRouteContributorPanel();
   setupRouteSaveDialog();
 
   routeEditorState.mapClickListener = map.addListener('click', event => {
@@ -1563,6 +1449,22 @@ function setupRouteAdder(map) {
     if (!button) return;
     button.addEventListener('click', () => handleRouteEditorAction(action));
   });
+
+  if (!tools.dataset.authListenerBound) {
+    document.addEventListener('authchange', event => {
+      const session = event && event.detail ? event.detail.session : null;
+      const user = session && session.user ? session.user : null;
+      if (user) {
+        setRouteContributor({
+          username: typeof user.username === 'string' ? user.username : '',
+          homeTown: typeof user.homeTown === 'string' ? user.homeTown : '',
+        });
+      } else {
+        setRouteContributor(null);
+      }
+    });
+    tools.dataset.authListenerBound = 'true';
+  }
 
   initialiseRouteHistory(routeEditorState);
   updateEditorControls(routeEditorState);
@@ -1822,11 +1724,22 @@ async function saveCurrentRoute(state) {
   }
 
   const sessionUser = getLoggedInUser();
-  const contributorDefaults = normalizeContributor(
-    state.contributor
-      || getRouteContributor()
-      || (sessionUser ? { username: sessionUser.username, homeTown: sessionUser.homeTown } : {}),
-  );
+  const stateContributor = normalizeContributor(state.contributor || {});
+  let contributorDefaults = stateContributor;
+
+  if (!contributorHasDetails(contributorDefaults)) {
+    const storedContributor = getRouteContributor();
+    if (contributorHasDetails(storedContributor)) {
+      contributorDefaults = normalizeContributor(storedContributor);
+    } else if (sessionUser) {
+      contributorDefaults = normalizeContributor({
+        username: sessionUser.username,
+        homeTown: sessionUser.homeTown,
+      });
+    } else {
+      contributorDefaults = normalizeContributor();
+    }
+  }
 
   const previousDetails = state.lastSaveDetails || {};
   const dialogDefaults = {
