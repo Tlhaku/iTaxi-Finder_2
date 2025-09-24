@@ -536,12 +536,14 @@ body.map-background {
 .overlay-card,
 .overlay-panel {
   position: relative;
-  z-index: 400;
+  z-index: 960;
   background: rgba(255, 255, 255, 0.88);
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
   backdrop-filter: blur(6px);
   box-sizing: border-box;
+  pointer-events: auto;
+  overflow: visible;
 }
 
 .overlay-drag-handle {
@@ -550,7 +552,7 @@ body.map-background {
   justify-content: center;
   width: 100%;
   height: 18px;
-  margin: -4px 0 16px;
+  margin: 4px 0 16px;
   cursor: move;
   user-select: none;
   touch-action: none;
@@ -573,18 +575,19 @@ body.map-background {
 }
 
 .overlay-drag-handle--floating {
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  width: var(--overlay-handle-width);
+  position: sticky;
+  top: 8px;
+  left: 0;
+  transform: none;
+  margin: 0 auto 16px;
+  width: 100%;
   height: 20px;
-  z-index: 10;
+  z-index: 20;
 }
 
 .overlay-drag-handle--floating::before {
-  width: 100%;
+  width: var(--overlay-handle-width);
+  margin: 0 auto;
 }
 
 .overlay-body {
