@@ -546,6 +546,19 @@ body.map-background {
   overflow: visible;
 }
 
+.overlay-panel.route-adder-saved,
+.overlay-panel.route-save-dialog {
+  position: fixed;
+}
+
+.overlay-panel.route-adder-saved {
+  z-index: 980;
+}
+
+.overlay-panel.route-save-dialog {
+  z-index: 1200;
+}
+
 .overlay-drag-handle {
   display: flex;
   align-items: center;
