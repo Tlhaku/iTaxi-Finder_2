@@ -96,32 +96,38 @@
       hidden
     ></p>
   </section>
-  <aside
+  <section
     id="editor-tools"
-    class="overlay-panel"
-    aria-label="Route editing tools"
+    class="overlay-panel route-editor-panel"
+    aria-labelledby="editor-tools-heading"
     data-draggable-overlay
+    data-overlay-label="Route editing tools"
   >
     <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
-    <p id="editor-status" class="editor-status" role="status" aria-live="polite">
-      Select "Draw" to start plotting a new taxi route, and select at least two points along the path you want to place a
-      route onto to begin. One segment is added to your route per 'click' along the path.
-    </p>
-    <button type="button" data-editor-action="draw">Draw</button>
-    <button type="button" data-editor-action="snap">Snap to Road</button>
-    <button type="button" data-editor-action="edit">Edit segment</button>
-    <button type="button" data-editor-action="undo" class="secondary">Undo</button>
-    <button type="button" data-editor-action="redo" class="secondary">Redo</button>
-    <button type="button" data-editor-action="save">Save</button>
-    <button type="button" data-editor-action="exit" class="secondary">Exit editing</button>
-    <div class="editor-tools__delete">
+    <header class="route-editor-panel__header">
+      <h2 id="editor-tools-heading">Route editing tools</h2>
+      <p id="editor-status" class="route-editor-panel__status" role="status" aria-live="polite">
+        Select "Draw" to start plotting a new taxi route, and select at least two points along the path you want to place a
+        route onto to begin. One segment is added to your route per 'click' along the path.
+      </p>
+    </header>
+    <div class="route-editor-panel__actions" role="group" aria-label="Editing commands">
+      <button type="button" data-editor-action="draw">Draw</button>
+      <button type="button" data-editor-action="snap">Snap to Road</button>
+      <button type="button" data-editor-action="edit">Edit segment</button>
+      <button type="button" data-editor-action="undo" class="secondary">Undo</button>
+      <button type="button" data-editor-action="redo" class="secondary">Redo</button>
+      <button type="button" data-editor-action="save">Save</button>
+      <button type="button" data-editor-action="exit" class="secondary">Exit editing</button>
+    </div>
+    <div class="route-editor-panel__delete">
       <label for="editor-delete-select">Remove a saved route</label>
       <select id="editor-delete-select" data-route-delete-select>
         <option value="">No saved routes available</option>
       </select>
-      <p class="editor-tools__delete-hint">Selecting a route removes it from the shared directory immediately.</p>
+      <p class="route-editor-panel__delete-hint">Selecting a route removes it from the shared directory immediately.</p>
     </div>
-  </aside>
+  </section>
   <section
     id="route-save-dialog"
     class="overlay-panel route-save-dialog"

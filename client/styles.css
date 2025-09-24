@@ -2,7 +2,7 @@
   --map-control-offset: 72px;
   --overlay-panel-top: 108px;
   --overlay-panel-max-height: calc(100vh - 148px);
-  --overlay-minimized-height: clamp(52px, 9vh, 72px);
+  --overlay-minimized-height: clamp(48px, 9vh, 68px);
   --overlay-toggle-size: clamp(32px, 8vw, 40px);
   --overlay-handle-width: clamp(60px, 18vw, 96px);
 }
@@ -597,8 +597,14 @@ body.map-background {
   width: var(--overlay-handle-width);
   height: 4px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.75);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  background: linear-gradient(
+    to bottom,
+    rgba(148, 163, 184, 0.95),
+    rgba(100, 116, 139, 0.85)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 2px 6px rgba(15, 23, 42, 0.18);
 }
 
 .overlay-drag-handle--floating {
@@ -757,26 +763,40 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
 }
 
-#editor-tools {
+.route-editor-panel {
   position: fixed;
   top: calc(var(--overlay-panel-top) + 12px);
   right: 28px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px 22px;
-  width: 260px;
-  max-width: calc(100vw - 56px);
+  gap: 18px;
+  padding: 24px 24px 28px;
+  width: min(320px, calc(100% - 56px));
   max-height: var(--overlay-panel-max-height);
   overflow-y: auto;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 18px;
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.22);
   z-index: 950;
-  backdrop-filter: blur(10px);
 }
 
-#editor-tools button {
+.route-editor-panel__header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.route-editor-panel__status {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: rgba(15, 23, 42, 0.76);
+}
+
+.route-editor-panel__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.route-editor-panel button {
   appearance: none;
   border: none;
   border-radius: 12px;
@@ -790,25 +810,25 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   box-shadow: 0 15px 35px rgba(29, 78, 216, 0.25);
 }
 
-#editor-tools button.secondary {
+.route-editor-panel button.secondary {
   background: rgba(15, 23, 42, 0.08);
   color: #0f172a;
   box-shadow: none;
 }
 
-#editor-tools button:hover,
-#editor-tools button:focus {
+.route-editor-panel button:hover,
+.route-editor-panel button:focus {
   transform: translateY(-2px);
   box-shadow: 0 20px 40px rgba(29, 78, 216, 0.3);
 }
 
-#editor-tools button.secondary:hover,
-#editor-tools button.secondary:focus {
+.route-editor-panel button.secondary:hover,
+.route-editor-panel button.secondary:focus {
   background: rgba(37, 99, 235, 0.14);
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
 }
 
-#editor-tools button:disabled {
+.route-editor-panel button:disabled {
   background: rgba(148, 163, 184, 0.35);
   color: rgba(15, 23, 42, 0.55);
   cursor: not-allowed;
@@ -816,14 +836,7 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   transform: none;
 }
 
-#editor-tools .editor-status {
-  margin: 0 0 4px;
-  font-size: 0.85rem;
-  line-height: 1.4;
-  color: rgba(15, 23, 42, 0.76);
-}
-
-.editor-tools__delete {
+.route-editor-panel__delete {
   margin-top: 8px;
   padding-top: 16px;
   border-top: 1px solid rgba(15, 23, 42, 0.12);
@@ -834,11 +847,11 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   flex: 1 1 100%;
 }
 
-.editor-tools__delete label {
+.route-editor-panel__delete label {
   font-weight: 600;
 }
 
-.editor-tools__delete select {
+.route-editor-panel__delete select {
   appearance: none;
   width: 100%;
   padding: 10px 12px;
@@ -849,12 +862,12 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
-.editor-tools__delete select:disabled {
+.route-editor-panel__delete select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.editor-tools__delete-hint {
+.route-editor-panel__delete-hint {
   margin: 0;
   font-size: 0.82rem;
   color: rgba(15, 23, 42, 0.65);
@@ -1430,20 +1443,18 @@ body.page-route-adder #map::after {
     justify-content: flex-end;
   }
 
-  #editor-tools {
+  .route-editor-panel {
     top: auto;
     bottom: 24px;
     right: auto;
     left: 50%;
     transform: translateX(-50%);
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+    width: calc(100% - 64px);
   }
 
-  #editor-tools button {
-    flex: 1 1 45%;
-    min-width: 140px;
+  .route-editor-panel__actions {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
   }
 
   .route-finder-panel {
@@ -1551,7 +1562,6 @@ body.page-route-adder #map::after {
     --map-control-offset: 64px;
     --overlay-panel-top: 88px;
     --overlay-panel-max-height: calc(100vh - 120px);
-    --overlay-minimized-height: clamp(50px, 9vh, 64px);
     --overlay-toggle-size: clamp(30px, 10vw, 34px);
     --overlay-handle-width: clamp(56px, 22vw, 90px);
   }
@@ -1594,13 +1604,17 @@ body.page-route-adder #map::after {
     padding: 22px 22px;
   }
 
-  #editor-tools {
-    width: min(240px, calc(100% - 48px));
-    padding: 16px 18px;
+  .route-editor-panel {
+    top: auto;
     bottom: 18px;
+    right: 12px;
+    left: auto;
+    transform: none;
+    width: min(260px, calc(100% - 48px));
+    padding: 18px 20px 22px;
   }
 
-  #editor-tools button {
+  .route-editor-panel button {
     padding: 10px 12px;
     font-size: 0.9rem;
   }
@@ -1636,7 +1650,6 @@ body.page-route-adder #map::after {
     --map-control-offset: 60px;
     --overlay-panel-top: 80px;
     --overlay-panel-max-height: calc(100vh - 112px);
-    --overlay-minimized-height: clamp(48px, 11vh, 58px);
     --overlay-toggle-size: clamp(28px, 12vw, 32px);
     --overlay-handle-width: clamp(52px, 28vw, 84px);
   }
@@ -1658,15 +1671,22 @@ body.page-route-adder #map::after {
     flex: 1 1 100%;
   }
 
-  #editor-tools {
-    gap: 10px;
-    width: min(220px, calc(100% - 28px));
-    padding: 14px 16px;
+  .route-editor-panel {
+    gap: 14px;
+    top: auto;
     bottom: 14px;
+    right: 8px;
+    left: auto;
+    width: min(220px, calc(100% - 28px));
+    padding: 16px 16px 18px;
   }
 
-  #editor-tools button {
-    flex: 1 1 100%;
+  .route-editor-panel__actions {
+    gap: 10px;
+  }
+
+  .route-editor-panel button {
+    width: 100%;
     padding: 9px 12px;
   }
 
