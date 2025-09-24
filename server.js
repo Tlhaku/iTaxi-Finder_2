@@ -377,6 +377,162 @@ function sanitizeFare(fare = {}) {
   return { min, max: maxCandidate, currency };
 }
 
+const GEOCODE_ENDPOINT = 'https://maps.googleapis.com/maps/api/geocode/json';
+const MAX_REGION_SAMPLES = 5;
+const geocodeCache = new Map();
+
+function sampleRoutePoints(path, maxSamples = MAX_REGION_SAMPLES) {
+  if (!Array.isArray(path) || path.length === 0) {
+    return [];
+  }
+  if (path.length <= maxSamples) {
+    return path.slice();
+  }
+  const samples = [];
+  const used = new Set();
+  const step = (path.length - 1) / (maxSamples - 1);
+  for (let i = 0; i < maxSamples; i += 1) {
+    const rawIndex = Math.round(i * step);
+    const index = Math.min(path.length - 1, rawIndex);
+    const point = path[index];
+    if (!point) continue;
+    const key = `${Number(point.lat).toFixed(5)},${Number(point.lng).toFixed(5)}`;
+    if (used.has(key)) continue;
+    used.add(key);
+    samples.push(point);
+  }
+  if (!used.has(`${Number(path[0].lat).toFixed(5)},${Number(path[0].lng).toFixed(5)}`)) {
+    samples.unshift(path[0]);
+  }
+  if (!used.has(`${Number(path[path.length - 1].lat).toFixed(5)},${Number(path[path.length - 1].lng).toFixed(5)}`)) {
+    samples.push(path[path.length - 1]);
+  }
+  return samples;
+}
+
+async function reverseGeocodePoint(point, apiKey) {
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng) || !apiKey) {
+    return null;
+  }
+  const cacheKey = `${Number(point.lat).toFixed(5)},${Number(point.lng).toFixed(5)}`;
+  if (geocodeCache.has(cacheKey)) {
+    return geocodeCache.get(cacheKey);
+  }
+
+  const params = new URLSearchParams({
+    latlng: `${point.lat},${point.lng}`,
+    key: apiKey,
+    result_type: 'locality|postal_town|administrative_area_level_2|administrative_area_level_1|sublocality',
+  });
+
+  const response = await fetch(`${GEOCODE_ENDPOINT}?${params.toString()}`);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Reverse geocode failed with status ${response.status}: ${detail}`);
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!payload || !Array.isArray(payload.results) || payload.results.length === 0) {
+    geocodeCache.set(cacheKey, null);
+    return null;
+  }
+
+  const components = Array.isArray(payload.results[0].address_components)
+    ? payload.results[0].address_components
+    : [];
+
+  let province = '';
+  let locality = '';
+  let postalTown = '';
+  let adminArea = '';
+  let sublocality = '';
+
+  components.forEach(component => {
+    const types = Array.isArray(component.types) ? component.types : [];
+    if (types.includes('administrative_area_level_1') && !province) {
+      province = component.long_name || component.short_name || '';
+    }
+    if (types.includes('locality') && !locality) {
+      locality = component.long_name || component.short_name || '';
+    }
+    if (types.includes('postal_town') && !postalTown) {
+      postalTown = component.long_name || component.short_name || '';
+    }
+    if (types.includes('administrative_area_level_2') && !adminArea) {
+      adminArea = component.long_name || component.short_name || '';
+    }
+    if ((types.includes('sublocality') || types.includes('sublocality_level_1')) && !sublocality) {
+      sublocality = component.long_name || component.short_name || '';
+    }
+  });
+
+  const result = {
+    province: sanitizeRegion(province),
+    locality: sanitizeRegion(locality),
+    postalTown: sanitizeRegion(postalTown),
+    adminArea: sanitizeRegion(adminArea),
+    sublocality: sanitizeRegion(sublocality),
+  };
+
+  geocodeCache.set(cacheKey, result);
+  return result;
+}
+
+function selectMostFrequent(countMap, fallback = '') {
+  if (!countMap || countMap.size === 0) {
+    return fallback;
+  }
+  let bestKey = fallback;
+  let bestCount = 0;
+  for (const [key, count] of countMap.entries()) {
+    if (!key) continue;
+    if (count > bestCount) {
+      bestKey = key;
+      bestCount = count;
+    }
+  }
+  return bestKey || fallback;
+}
+
+async function inferRouteRegion(path, apiKey) {
+  if (!apiKey || !Array.isArray(path) || path.length === 0) {
+    return { province: '', city: '' };
+  }
+
+  const samples = sampleRoutePoints(path, MAX_REGION_SAMPLES);
+  if (!samples.length) {
+    return { province: '', city: '' };
+  }
+
+  const provinceCounts = new Map();
+  const cityCounts = new Map();
+  let fallbackProvince = '';
+  let fallbackCity = '';
+
+  for (const point of samples) {
+    try {
+      const result = await reverseGeocodePoint(point, apiKey);
+      if (!result) continue;
+      if (result.province) {
+        fallbackProvince = fallbackProvince || result.province;
+        provinceCounts.set(result.province, (provinceCounts.get(result.province) || 0) + 1);
+      }
+      const cityCandidate = result.locality || result.postalTown || result.adminArea || result.sublocality;
+      if (cityCandidate) {
+        fallbackCity = fallbackCity || cityCandidate;
+        cityCounts.set(cityCandidate, (cityCounts.get(cityCandidate) || 0) + 1);
+      }
+    } catch (error) {
+      console.warn('Reverse geocode lookup failed', error);
+    }
+  }
+
+  return {
+    province: sanitizeRegion(selectMostFrequent(provinceCounts, fallbackProvince)),
+    city: sanitizeRegion(selectMostFrequent(cityCounts, fallbackCity)),
+  };
+}
+
 const EARTH_RADIUS_METERS = 6371000;
 const MAX_SNAP_POINTS_PER_REQUEST = 100;
 const SNAP_SEGMENT_LENGTH_METERS = 15;
@@ -474,126 +630,171 @@ async function snapPathToRoads(basePath, apiKey) {
   return snapped;
 }
 
-function handleCreateRoute(req, res) {
-  parseJsonBody(req)
-    .then(payload => {
-      const basePath = sanitizeCoordinateList(payload.path);
-      const snappedPath = sanitizeCoordinateList(payload.snappedPath);
-      if (!basePath.length && !snappedPath.length) {
-        sendJson(res, { message: 'Route path is required' }, 400);
-        return;
+async function handleCreateRoute(req, res) {
+  let payload;
+  try {
+    payload = await parseJsonBody(req);
+  } catch (error) {
+    sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
+    return;
+  }
+
+  const basePath = sanitizeCoordinateList(payload.path);
+  const snappedPath = sanitizeCoordinateList(payload.snappedPath);
+  if (!basePath.length && !snappedPath.length) {
+    sendJson(res, { message: 'Route path is required' }, 400);
+    return;
+  }
+
+  const nextId = routes.reduce((max, route) => Math.max(max, Number(route.routeId) || 0), 0) + 1;
+  const sessionInfo = getSession(req);
+  const sessionUser = sessionInfo ? sessionInfo.user : null;
+  const contributorResult = resolveContributor(payload.addedBy, sessionUser || null);
+  if (!contributorResult || contributorResult.error) {
+    const message = contributorResult && contributorResult.error
+      ? contributorResult.error
+      : 'Contributor details must match a registered user.';
+    sendJson(res, { message }, 400);
+    return;
+  }
+
+  const addedBy = contributorResult.addedBy;
+  const contributorUser = contributorResult.user;
+  const timestamp = new Date().toISOString();
+
+  const route = {
+    routeId: nextId,
+    name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : `Route ${nextId}`,
+    fare: sanitizeFare(payload.fare),
+    gesture: typeof payload.gesture === 'string' ? payload.gesture.trim() : '',
+    province: sanitizeRegion(payload.province),
+    city: sanitizeRegion(payload.city),
+    stops: sanitizeStops(payload.stops),
+    frequencyPerHour: payload.frequencyPerHour || null,
+    firstLoad: payload.firstLoad || '',
+    lastLoad: payload.lastLoad || '',
+    rushHours: Array.isArray(payload.rushHours) ? payload.rushHours : [],
+    quietHours: Array.isArray(payload.quietHours) ? payload.quietHours : [],
+    path: basePath,
+    snappedPath: snappedPath.length ? snappedPath : basePath,
+    variations: Array.isArray(payload.variations) ? payload.variations : [],
+    addedBy,
+    addedByUserId: contributorUser ? contributorUser.id : null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (apiKey && route.snappedPath.length) {
+    try {
+      const region = await inferRouteRegion(route.snappedPath, apiKey);
+      if (region.province) {
+        route.province = sanitizeRegion(region.province);
       }
-
-      const nextId = routes.reduce((max, route) => Math.max(max, Number(route.routeId) || 0), 0) + 1;
-      const sessionInfo = getSession(req);
-      const sessionUser = sessionInfo ? sessionInfo.user : null;
-      const contributorResult = resolveContributor(payload.addedBy, sessionUser || null);
-      if (!contributorResult || contributorResult.error) {
-        const message = contributorResult && contributorResult.error
-          ? contributorResult.error
-          : 'Contributor details must match a registered user.';
-        sendJson(res, { message }, 400);
-        return;
+      if (region.city) {
+        route.city = sanitizeRegion(region.city);
       }
-      const addedBy = contributorResult.addedBy;
-      const contributorUser = contributorResult.user;
-      const timestamp = new Date().toISOString();
+    } catch (error) {
+      console.warn('Failed to infer route region', error);
+    }
+  }
 
-      const route = {
-        routeId: nextId,
-        name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : `Route ${nextId}`,
-        fare: sanitizeFare(payload.fare),
-        gesture: typeof payload.gesture === 'string' ? payload.gesture.trim() : '',
-        province: sanitizeRegion(payload.province),
-        city: sanitizeRegion(payload.city),
-        stops: sanitizeStops(payload.stops),
-        frequencyPerHour: payload.frequencyPerHour || null,
-        firstLoad: payload.firstLoad || '',
-        lastLoad: payload.lastLoad || '',
-        rushHours: Array.isArray(payload.rushHours) ? payload.rushHours : [],
-        quietHours: Array.isArray(payload.quietHours) ? payload.quietHours : [],
-        path: basePath,
-        snappedPath: snappedPath.length ? snappedPath : basePath,
-        variations: Array.isArray(payload.variations) ? payload.variations : [],
-        addedBy,
-        addedByUserId: contributorUser ? contributorUser.id : null,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
-
-      routes.push(route);
-      persistRoutes()
-        .then(() => sendJson(res, route, 201))
-        .catch(error => {
-          console.error('Failed to persist route', error);
-          routes = routes.filter(r => r.routeId !== route.routeId);
-          sendJson(res, { message: 'Failed to save route' }, 500);
-        });
-    })
-    .catch(error => {
-      sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
-    });
+  routes.push(route);
+  try {
+    await persistRoutes();
+    sendJson(res, route, 201);
+  } catch (error) {
+    console.error('Failed to persist route', error);
+    routes = routes.filter(r => r.routeId !== route.routeId);
+    sendJson(res, { message: 'Failed to save route' }, 500);
+  }
 }
 
-function handleUpdateRoute(req, res, id) {
+async function handleUpdateRoute(req, res, id) {
   const index = routes.findIndex(route => String(route.routeId) === id);
   if (index === -1) {
     sendJson(res, { message: 'Not found' }, 404);
     return;
   }
 
-  parseJsonBody(req)
-    .then(payload => {
-      const target = routes[index];
-      const basePath = sanitizeCoordinateList(payload.path || target.path);
-      const snappedPath = sanitizeCoordinateList(payload.snappedPath || target.snappedPath || basePath);
-      const sessionInfo = getSession(req);
-      const sessionUser = sessionInfo ? sessionInfo.user : null;
-      const addedByProvided = Object.prototype.hasOwnProperty.call(payload, 'addedBy');
-      const contributorSource = addedByProvided ? payload.addedBy : target.addedBy;
-      let addedBy = target.addedBy || { username: '', name: '', homeTown: '' };
-      let addedByUserId = target.addedByUserId || null;
-      if (sessionUser || addedByProvided) {
-        const contributorResult = resolveContributor(contributorSource, sessionUser || null);
-        if (!contributorResult || contributorResult.error) {
-          const message = contributorResult && contributorResult.error
-            ? contributorResult.error
-            : 'Contributor details must match a registered user.';
-          sendJson(res, { message }, 400);
-          return;
-        }
-        addedBy = contributorResult.addedBy;
-        if (contributorResult.user && contributorResult.user.id !== undefined) {
-          addedByUserId = contributorResult.user.id;
-        }
-      }
-      const updatedAt = new Date().toISOString();
-      routes[index] = {
-        ...target,
-        ...payload,
-        name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : target.name,
-        gesture: typeof payload.gesture === 'string' ? payload.gesture.trim() : target.gesture,
-        province: sanitizeRegion(payload.province !== undefined ? payload.province : target.province),
-        city: sanitizeRegion(payload.city !== undefined ? payload.city : target.city),
-        fare: sanitizeFare(payload.fare || target.fare),
-        stops: sanitizeStops(payload.stops || target.stops),
-        path: basePath,
-        snappedPath: snappedPath.length ? snappedPath : basePath,
-        addedBy,
-        addedByUserId,
-        updatedAt,
-      };
+  let payload;
+  try {
+    payload = await parseJsonBody(req);
+  } catch (error) {
+    sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
+    return;
+  }
 
-      persistRoutes()
-        .then(() => sendJson(res, routes[index]))
-        .catch(error => {
-          console.error('Failed to persist updated route', error);
-          sendJson(res, { message: 'Failed to update route' }, 500);
-        });
-    })
-    .catch(error => {
-      sendJson(res, { message: error.message || 'Invalid request payload' }, 400);
-    });
+  const target = routes[index];
+  const basePath = sanitizeCoordinateList(payload.path !== undefined ? payload.path : target.path);
+  const snappedPath = sanitizeCoordinateList(payload.snappedPath !== undefined ? payload.snappedPath : target.snappedPath || basePath);
+  const sessionInfo = getSession(req);
+  const sessionUser = sessionInfo ? sessionInfo.user : null;
+  const addedByProvided = Object.prototype.hasOwnProperty.call(payload, 'addedBy');
+  const contributorSource = addedByProvided ? payload.addedBy : target.addedBy;
+  let addedBy = target.addedBy || { username: '', name: '', homeTown: '' };
+  let addedByUserId = target.addedByUserId || null;
+
+  if (sessionUser || addedByProvided) {
+    const contributorResult = resolveContributor(contributorSource, sessionUser || null);
+    if (!contributorResult || contributorResult.error) {
+      const message = contributorResult && contributorResult.error
+        ? contributorResult.error
+        : 'Contributor details must match a registered user.';
+      sendJson(res, { message }, 400);
+      return;
+    }
+    addedBy = contributorResult.addedBy;
+    if (contributorResult.user && contributorResult.user.id !== undefined) {
+      addedByUserId = contributorResult.user.id;
+    }
+  }
+
+  const updatedAt = new Date().toISOString();
+  const updatedRoute = {
+    ...target,
+    ...payload,
+    name: typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : target.name,
+    gesture: typeof payload.gesture === 'string' ? payload.gesture.trim() : target.gesture,
+    province: sanitizeRegion(payload.province !== undefined ? payload.province : target.province),
+    city: sanitizeRegion(payload.city !== undefined ? payload.city : target.city),
+    fare: sanitizeFare(payload.fare || target.fare),
+    stops: sanitizeStops(payload.stops || target.stops),
+    path: basePath,
+    snappedPath: snappedPath.length ? snappedPath : basePath,
+    addedBy,
+    addedByUserId,
+    updatedAt,
+  };
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const pathChanged = Object.prototype.hasOwnProperty.call(payload, 'path')
+    || Object.prototype.hasOwnProperty.call(payload, 'snappedPath');
+  const missingRegion = !updatedRoute.province || !updatedRoute.city;
+
+  if (apiKey && updatedRoute.snappedPath.length && (pathChanged || missingRegion)) {
+    try {
+      const region = await inferRouteRegion(updatedRoute.snappedPath, apiKey);
+      if (region.province) {
+        updatedRoute.province = sanitizeRegion(region.province);
+      }
+      if (region.city) {
+        updatedRoute.city = sanitizeRegion(region.city);
+      }
+    } catch (error) {
+      console.warn('Failed to refresh route region', error);
+    }
+  }
+
+  routes[index] = updatedRoute;
+
+  try {
+    await persistRoutes();
+    sendJson(res, routes[index]);
+  } catch (error) {
+    console.error('Failed to persist updated route', error);
+    sendJson(res, { message: 'Failed to update route' }, 500);
+  }
 }
 
 function handleDeleteRoute(req, res, id) {
