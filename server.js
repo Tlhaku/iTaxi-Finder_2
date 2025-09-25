@@ -49,7 +49,10 @@ function serveStatic(res, filePath) {
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url, true);
   if (parsed.pathname === '/config') {
-    sendJson(res, { mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '' });
+    const fallbackKey = 'AIzaSyCYxFkL9vcvbaFz-Ut1Lm2Vge5byodujfk';
+    sendJson(res, {
+      mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || fallbackKey,
+    });
   } else if (parsed.pathname === '/api/routes') {
     sendJson(res, routes);
   } else if (parsed.pathname.startsWith('/api/routes/')) {
