@@ -3451,14 +3451,21 @@ function groupRoutesByProvinceCity(routes, collator) {
 function renderRouteDetails(route, options = {}) {
   if (!routeFinderState || !routeFinderState.detailsElement) return;
   const container = routeFinderState.detailsElement;
+  const scrollContainer = container.closest('[data-overlay-body]');
 
   if (options.message) {
     container.innerHTML = `<p class="route-details__empty">${escapeHtml(options.message)}</p>`;
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
     return;
   }
 
   if (!route) {
     container.innerHTML = '<p class="route-details__empty">Select a saved route to see its details.</p>';
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
     return;
   }
 
@@ -3514,6 +3521,10 @@ function renderRouteDetails(route, options = {}) {
     ${stopsMarkup}
     ${rawDataMarkup}
   `;
+
+  if (scrollContainer) {
+    scrollContainer.scrollTop = 0;
+  }
 }
 
 function buildStopsMarkup(stops) {
