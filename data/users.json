@@ -1,1 +1,52 @@
-[]
+[{
+  "_id": {
+    "$oid": "68d3e805e31581bbed373e99"
+  },
+  "id": 2,
+  "username": "Rea",
+  "roles": [
+    "taxi-rider"
+  ],
+  "firstName": "Rearabetswe",
+  "lastName": "Mohoto",
+  "homeTown": "Montclair, Durban",
+  "name": "Rearabetswe Mohoto",
+  "email": "rearabetswe.mohoto@gmail.com",
+  "phone": "+27832712551",
+  "routes": "",
+  "metadata": {},
+  "createdAt": "2025-09-24T11:49:07.078Z",
+  "updatedAt": "2025-09-24T11:49:07.078Z",
+  "lastLoginAt": "2025-09-24T11:49:07.078Z",
+  "passwordSalt": "158f6260cf81e989f3b33bf8e9425581",
+  "passwordHash": "27b72f4114eae2317c21f06480f9fcc66ce4969f8f2e552b7c8fc9f61662c88cce3548757faf76b2efe7d3495cf591bc3fcbb23c125df1d9bbc92f6170419bea",
+  "passwordIterations": 120000,
+  "passwordKeyLength": 64,
+  "passwordDigest": "sha512"
+},
+{
+  "_id": {
+    "$oid": "68d3e805e31581bbed373e9a"
+  },
+  "id": 3,
+  "username": "Kat",
+  "roles": [
+    "rank-manager"
+  ],
+  "firstName": "Katleho",
+  "lastName": "Mohoto",
+  "homeTown": "Roodepoort",
+  "name": "Katleho Mohoto",
+  "email": "",
+  "phone": "",
+  "routes": "",
+  "metadata": {},
+  "createdAt": "2025-09-24T11:58:59.223Z",
+  "updatedAt": "2025-09-24T11:58:59.223Z",
+  "lastLoginAt": "2025-09-24T11:58:59.223Z",
+  "passwordSalt": "5430efa00d09e72ab37ff9218644ee5f",
+  "passwordHash": "6da652f9cd02e513bf8d42689c3b9b8fcb93f8916f653c38bac077a33179694e378d1d5f2bde133a7fb80fd5bee3ed9f146f0ad62e17f93c69975a99e8b8f3cc",
+  "passwordIterations": 120000,
+  "passwordKeyLength": 64,
+  "passwordDigest": "sha512"
+}]
