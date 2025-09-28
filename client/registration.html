@@ -7,18 +7,67 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
-  <div id="topbar">
-    <a href="/">iTaxi-Finder</a>
-    <a href="/">Route Finder</a>
-    <a href="/route-adder.html">Route Adder</a>
-    <a href="/delivery.html">Delivery</a>
-    <a href="/community.html">Community</a>
-    <a href="/registration.html">Registration</a>
-    <a href="/about.html">About</a>
-    <button onclick="toggleUI()">Hide UI</button>
-  </div>
-  <div id="map"></div>
+<body data-page="registration">
+  <div id="topbar"></div>
 
+  <section class="registration-panel" data-panel>
+    <h1>Register your profile</h1>
+    <p class="help-text">Join the iTaxi-Finder ecosystem as a contributor. Choose the role that best describes you, capture the essentials, and start sharing verified route information.</p>
+
+    <form id="registration-form" class="form-card">
+      <h2>Create a new account</h2>
+      <label class="form-field">
+        <span>Full name</span>
+        <input type="text" name="name" autocomplete="name" required />
+      </label>
+      <label class="form-field">
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="email" required />
+      </label>
+      <label class="form-field">
+        <span>Mobile number</span>
+        <input type="tel" name="phone" autocomplete="tel" />
+      </label>
+      <label class="form-field">
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="new-password" required />
+      </label>
+      <label class="form-field">
+        <span>Confirm password</span>
+        <input type="password" name="confirmPassword" autocomplete="new-password" required />
+      </label>
+      <label class="form-field">
+        <span>Role</span>
+        <select id="registration-role" name="role" required>
+          <option value="collector">Collector</option>
+          <option value="taxi driver">Taxi Driver</option>
+          <option value="spaza owner">Spaza Owner</option>
+          <option value="taxi rank depot/depot shop">Taxi Rank Depot / Depot Shop</option>
+          <option value="monthly subscriber">Monthly Subscriber</option>
+          <option value="taxi owner">Taxi Owner</option>
+        </select>
+      </label>
+      <div id="role-extra-fields" class="role-extra"></div>
+      <button type="submit" class="button-primary">Register</button>
+    </form>
+    <div id="registration-status" class="status-text" aria-live="polite"></div>
+
+    <form id="registration-login-form" class="form-card">
+      <h2>Already registered?</h2>
+      <p class="help-text">Sign in to manage your saved routes and contribute updates.</p>
+      <label class="form-field">
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="email" required />
+      </label>
+      <label class="form-field">
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="button-primary">Log in</button>
+    </form>
+    <div id="login-status" class="status-text" aria-live="polite"></div>
+  </section>
+
+  <div id="map" role="presentation"></div>
 </body>
 </html>

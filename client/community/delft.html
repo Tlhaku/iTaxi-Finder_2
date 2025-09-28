@@ -7,21 +7,12 @@
   <link rel="stylesheet" href="../styles.css" />
   <script src="../app.js" defer></script>
 </head>
-<body>
-  <div id="topbar">
-    <a href="/">iTaxi-Finder</a>
-    <a href="/">Route Finder</a>
-    <a href="/route-adder.html">Route Adder</a>
-    <a href="/delivery.html">Delivery</a>
-    <a href="/community.html">Community</a>
-    <a href="/registration.html">Registration</a>
-    <a href="/about.html">About</a>
-    <button onclick="toggleUI()">Hide UI</button>
-  </div>
-  <div style="position:absolute;top:60px;left:10px;right:10px;bottom:10px;overflow:auto;background:rgba(255,255,255,0.8);padding:20px;">
+<body data-page="community">
+  <div id="topbar"></div>
+  <section class="community-sheet" data-panel>
     <h1>Delft</h1>
     <p>No posts yet.</p>
-  </div>
-  <div id="map"></div>
+  </section>
+  <div id="map" role="presentation"></div>
 </body>
 </html>

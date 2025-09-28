@@ -7,18 +7,81 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
-  <div id="topbar">
-    <a href="/">iTaxi-Finder</a>
-    <a href="/">Route Finder</a>
-    <a href="/route-adder.html">Route Adder</a>
-    <a href="/delivery.html">Delivery</a>
-    <a href="/community.html">Community</a>
-    <a href="/registration.html">Registration</a>
-    <a href="/about.html">About</a>
-    <button onclick="toggleUI()">Hide UI</button>
-  </div>
-  <div id="map"></div>
+<body data-page="adder">
+  <div id="topbar"></div>
 
+  <section class="route-adder-panel" data-panel>
+    <h1>Route Adder</h1>
+    <p class="help-text">Capture new shared taxi routes or update the ones already in our database. Every change is saved against your profile for accountability.</p>
+    <div id="route-editor-status" class="status-text">Log in to add or edit routes.</div>
+
+    <form id="route-login-form" class="form-card">
+      <h2>Log in to start mapping</h2>
+      <p class="help-text">Use the email address and password from your registration. Need an account? Register from the menu.</p>
+      <label class="form-field">
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="email" required />
+      </label>
+      <label class="form-field">
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="button-primary">Log in</button>
+    </form>
+
+    <form id="route-editor" class="form-card" hidden>
+      <input type="hidden" name="routeId" />
+
+      <label class="form-field">
+        <span>Select a saved route</span>
+        <select id="route-picker" required>
+          <option value="">Select a route to edit</option>
+        </select>
+      </label>
+
+      <button type="button" id="route-new" class="button-secondary">Start a new route</button>
+
+      <label class="form-field">
+        <span>Route name</span>
+        <input type="text" name="name" placeholder="e.g. Bree Taxi Rank to Soweto" required />
+      </label>
+
+      <label class="form-field">
+        <span>Gesture (hand signal)</span>
+        <input type="text" name="gesture" placeholder="Describe the hand signal" />
+      </label>
+
+      <div class="fare-grid">
+        <label class="form-field">
+          <span>Minimum fare</span>
+          <input type="number" name="fareMin" step="0.01" min="0" />
+        </label>
+        <label class="form-field">
+          <span>Maximum fare</span>
+          <input type="number" name="fareMax" step="0.01" min="0" />
+        </label>
+        <label class="form-field">
+          <span>Currency</span>
+          <input type="text" name="fareCurrency" value="ZAR" maxlength="3" />
+        </label>
+      </div>
+
+      <div class="stops-editor">
+        <div class="stops-editor__header">
+          <h2>Stops</h2>
+          <button type="button" id="add-stop" class="button-secondary">Add stop</button>
+        </div>
+        <p class="help-text">Add every taxi rank, landmark, or important way-point. Coordinates are optional but help show the route on the map.</p>
+        <div data-stops-container class="stops-editor__list"></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Save route</button>
+        <button type="button" id="route-delete" class="button-danger">Delete route</button>
+      </div>
+    </form>
+  </section>
+
+  <div id="map" role="presentation"></div>
 </body>
 </html>

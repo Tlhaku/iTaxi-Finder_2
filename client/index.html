@@ -7,19 +7,35 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
-  <div id="topbar">
-    <a href="/">iTaxi-Finder</a>
-    <a href="/">Route Finder</a>
-    <a href="/route-adder.html">Route Adder</a>
-    <a href="/delivery.html">Delivery</a>
-    <a href="/community.html">Community</a>
-    <a href="/registration.html">Registration</a>
-    <a href="/about.html">About</a>
-    <button onclick="toggleUI()">Hide UI</button>
-  </div>
-  <div id="search"><input placeholder="Search routes" /></div>
-  <div id="map"></div>
+<body data-page="finder">
+  <div id="topbar"></div>
 
+  <section class="route-finder-panel" data-panel>
+    <h1>Route Finder</h1>
+    <p class="help-text">Search the live database of shared taxi routes, view fare estimates, and see stop locations without leaving the map.</p>
+    <label class="form-field">
+      <span>Search by route name, gesture, or stop</span>
+      <input id="route-search-input" type="search" placeholder="e.g. Bree to Alexandra" autocomplete="off" />
+    </label>
+    <div id="route-search-status" class="help-text">Loading routes…</div>
+    <div id="route-results" class="route-list" role="list"></div>
+    <article id="route-details" class="route-details" hidden>
+      <h2 data-route-title>Route name</h2>
+      <dl>
+        <div>
+          <dt>Gesture</dt>
+          <dd data-route-gesture>—</dd>
+        </div>
+        <div>
+          <dt>Fare</dt>
+          <dd data-route-fare>—</dd>
+        </div>
+      </dl>
+      <h3>Stops</h3>
+      <ul data-route-stops class="route-stops"></ul>
+    </article>
+  </section>
+
+  <div id="map" role="presentation"></div>
 </body>
 </html>
