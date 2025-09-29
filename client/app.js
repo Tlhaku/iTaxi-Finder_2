@@ -86,7 +86,6 @@ const communityMenuItems = communityTownships.map(item => {
 });
 
 const menuItems = [
-  { id: 'website-header', label: 'Website Header', action: { type: 'overlay', panelId: 'website-header' } },
   { id: 'login-status', label: 'Login status', action: { type: 'overlay', panelId: 'login-status' } },
   { id: 'route-finder', label: 'Route Finder', action: { type: 'right', panelId: 'route-finder' } },
   { id: 'route-adder', label: 'Route Adder', action: { type: 'right', panelId: 'route-adder' } },
@@ -863,14 +862,19 @@ function buildMenu() {
   menuCloseButton.setAttribute('aria-controls', topbar.id || 'topbar');
   menuCloseButton.setAttribute('aria-expanded', 'false');
   menuCloseButton.setAttribute('aria-label', 'Close navigation menu');
-  menuCloseButton.textContent = 'Close menu';
-  topbar.appendChild(menuCloseButton);
+  menuCloseButton.innerHTML = '<span aria-hidden="true">&times;</span>';
 
   const brandLink = document.createElement('a');
   brandLink.href = '/';
   brandLink.textContent = 'iTaxi-Finder';
   brandLink.className = 'menu-brand';
-  topbar.appendChild(brandLink);
+  brandLink.setAttribute('aria-label', 'Open the iTaxi-Finder overview panel');
+
+  const header = document.createElement('div');
+  header.className = 'menu-header';
+  header.appendChild(brandLink);
+  header.appendChild(menuCloseButton);
+  topbar.appendChild(header);
 
   const nav = document.createElement('nav');
   nav.className = 'menu-links';
@@ -882,6 +886,12 @@ function buildMenu() {
 
   submenuControllers = [];
   buildMenuList(list, menuItems);
+
+  brandLink.addEventListener('click', async event => {
+    event.preventDefault();
+    closeMenu();
+    await openPanelAction({ type: 'overlay', panelId: 'website-header' });
+  });
 
   menuToggleButton.addEventListener('click', () => toggleMenu());
   menuCloseButton.addEventListener('click', () => closeMenu());
@@ -959,18 +969,29 @@ function initLoginStatusPanel() {
 }
 
 async function ensureBasePanels() {
-  const coreActions = [
-    findMenuAction('website-header'),
-    findMenuAction('login-status'),
-    findMenuAction('route-finder'),
-    findMenuAction('route-adder'),
-    findMenuAction('delivery'),
-    findMenuAction('registration'),
-    findMenuAction('about'),
-    findMenuAction('community-directory'),
-  ].filter(Boolean);
+  const desiredPanels = [
+    { panelId: 'website-header', fallback: { type: 'overlay', panelId: 'website-header' } },
+    { panelId: 'login-status' },
+    { panelId: 'route-finder' },
+    { panelId: 'route-adder' },
+    { panelId: 'delivery' },
+    { panelId: 'registration' },
+    { panelId: 'about' },
+    { panelId: 'community-directory', fallback: { type: 'overlay', panelId: 'community-directory' } },
+  ];
 
-  for (const action of coreActions) {
+  const queued = [];
+  const seen = new Set();
+
+  desiredPanels.forEach(entry => {
+    const action = findMenuAction(entry.panelId) || entry.fallback || { type: 'overlay', panelId: entry.panelId };
+    if (action && !seen.has(action.panelId)) {
+      seen.add(action.panelId);
+      queued.push(action);
+    }
+  });
+
+  for (const action of queued) {
     try {
       // sequential to ensure init hooks run in order
       // eslint-disable-next-line no-await-in-loop
@@ -1518,8 +1539,9 @@ async function openDefaultPanelForPage() {
     prepareCommunityPanel(panelId);
     await openPanelAction(action);
   } else {
-    const action = findMenuAction('website-header');
-    if (action) await openPanelAction(action);
+    const action = findMenuAction('website-header') || { type: 'overlay', panelId: 'website-header' };
+    await ensurePanelAvailability(action);
+    await openPanelAction(action);
   }
 }
 
