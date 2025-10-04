@@ -174,6 +174,7 @@ function closeActivePanel() {
   }
   document.body.classList.remove('panel-open');
   document.body.classList.remove('panel-right-active');
+  document.body.removeAttribute('data-active-panel');
 }
 
 function maybeInitialisePanel(panelId) {
@@ -196,6 +197,7 @@ function showPanel(panelId) {
   panelScrim.setAttribute('aria-hidden', 'false');
   document.body.classList.add('panel-open');
   activePanelId = panelId;
+  document.body.setAttribute('data-active-panel', panelId);
   requestAnimationFrame(() => {
     entry.element.focus({ preventScroll: false });
   });
