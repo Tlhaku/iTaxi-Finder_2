@@ -166,7 +166,10 @@ function ensurePanelScrim() {
   panelScrim = document.createElement('div');
   panelScrim.className = 'panel-scrim';
   panelScrim.setAttribute('aria-hidden', 'true');
-  panelScrim.addEventListener('click', () => closeActivePanel());
+  panelScrim.addEventListener('click', () => {
+    if (!panelScrim.classList.contains('is-interactive')) return;
+    closeActivePanel();
+  });
   document.body.appendChild(panelScrim);
   return panelScrim;
 }
@@ -183,6 +186,7 @@ function closeActivePanel() {
   activePanelId = null;
   if (panelScrim) {
     panelScrim.classList.remove('is-active');
+    panelScrim.classList.remove('is-interactive');
     panelScrim.setAttribute('aria-hidden', 'true');
   }
   document.body.classList.remove('panel-open');
@@ -206,11 +210,18 @@ function showPanel(panelId) {
   if (!panelRegistry.has(panelId)) return;
   const entry = panelRegistry.get(panelId);
   ensurePanelScrim();
+  const panelType = entry.type || entry.element.dataset.panelType || 'overlay';
   closeActivePanel();
   entry.element.classList.add('is-active');
   entry.element.setAttribute('aria-hidden', 'false');
   panelScrim.classList.add('is-active');
-  panelScrim.setAttribute('aria-hidden', 'false');
+  if (panelType === 'overlay') {
+    panelScrim.classList.add('is-interactive');
+    panelScrim.setAttribute('aria-hidden', 'false');
+  } else {
+    panelScrim.classList.remove('is-interactive');
+    panelScrim.setAttribute('aria-hidden', 'true');
+  }
   document.body.classList.add('panel-open');
   activePanelId = panelId;
   document.body.setAttribute('data-active-panel', panelId);

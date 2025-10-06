@@ -129,6 +129,9 @@ body {
 
 .panel-scrim.is-active {
   opacity: 1;
+}
+
+.panel-scrim.is-active.is-interactive {
   pointer-events: auto;
 }
 
