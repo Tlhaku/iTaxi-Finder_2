@@ -19,6 +19,18 @@ let activePanelId = null;
 let mapInstance = null;
 let mapMarkers = [];
 let mapRouteLine = null;
+let googleMapsApiKey = null;
+const routeDrawingState = {
+  active: false,
+  points: [],
+  snappedPoints: [],
+  markers: [],
+  rawPolyline: null,
+  snappedPolyline: null,
+  clickListener: null,
+  controls: null,
+  statusTimer: null,
+};
 let cachedRoutes = null;
 
 const communityTownships = [
@@ -160,6 +172,7 @@ function ensurePanelScrim() {
 }
 
 function closeActivePanel() {
+  const previousPanelId = activePanelId;
   if (activePanelId && panelRegistry.has(activePanelId)) {
     const activeEntry = panelRegistry.get(activePanelId);
     if (activeEntry) {
@@ -175,6 +188,9 @@ function closeActivePanel() {
   document.body.classList.remove('panel-open');
   document.body.classList.remove('panel-right-active');
   document.body.removeAttribute('data-active-panel');
+  if (previousPanelId) {
+    document.dispatchEvent(new CustomEvent('panel:close', { detail: { panelId: previousPanelId } }));
+  }
 }
 
 function maybeInitialisePanel(panelId) {
@@ -201,6 +217,7 @@ function showPanel(panelId) {
   requestAnimationFrame(() => {
     entry.element.focus({ preventScroll: false });
   });
+  document.dispatchEvent(new CustomEvent('panel:open', { detail: { panelId } }));
 }
 
 async function ensurePanelAvailability(action) {
@@ -273,6 +290,10 @@ const roleFieldConfig = {
   'taxi owner': [
     { name: 'fleetSize', label: 'Fleet size', type: 'number', min: 1, required: true },
     { name: 'association', label: 'Association or forum', type: 'text' },
+  ],
+  'taxi rider/commuter': [
+    { name: 'homeArea', label: 'Home area or pickup rank', type: 'text', required: true },
+    { name: 'dailyDestination', label: 'Typical destination or drop-off', type: 'text' },
   ],
 };
 
@@ -626,6 +647,7 @@ function loadMap() {
   fetch('/config')
     .then(r => r.json())
     .then(config => {
+      googleMapsApiKey = config && config.mapsApiKey ? config.mapsApiKey : null;
       return new Promise(resolve => {
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${config.mapsApiKey}`;
@@ -659,6 +681,8 @@ function initMap() {
       { enableHighAccuracy: true, maximumAge: 60000 }
     );
   }
+
+  renderRouteDrawingOverlays();
 }
 
 function clearMapOverlays() {
@@ -712,6 +736,284 @@ function showRouteOnMap(route) {
 
   if (!bounds.isEmpty()) {
     mapInstance.fitBounds(bounds, 60);
+  }
+}
+
+function normaliseLatLng(point) {
+  if (!point) return null;
+  const lat = typeof point.lat === 'number' ? point.lat : parseFloat(point.lat);
+  const lng = typeof point.lng === 'number' ? point.lng : parseFloat(point.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  return { lat, lng };
+}
+
+function clearRouteDrawingOverlays() {
+  routeDrawingState.markers.forEach(marker => marker.setMap(null));
+  routeDrawingState.markers = [];
+  if (routeDrawingState.rawPolyline) {
+    routeDrawingState.rawPolyline.setMap(null);
+    routeDrawingState.rawPolyline = null;
+  }
+  if (routeDrawingState.snappedPolyline) {
+    routeDrawingState.snappedPolyline.setMap(null);
+    routeDrawingState.snappedPolyline = null;
+  }
+}
+
+function renderRouteDrawingOverlays() {
+  if (!mapInstance) return;
+  clearRouteDrawingOverlays();
+
+  if (routeDrawingState.points.length) {
+    routeDrawingState.points.forEach((point, index) => {
+      if (!point) return;
+      const marker = new google.maps.Marker({
+        position: point,
+        map: mapInstance,
+        label: {
+          text: String(index + 1),
+          color: '#0f253f',
+          fontSize: '12px',
+          fontWeight: '700',
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: '#f8a100',
+          fillOpacity: 0.95,
+          strokeColor: '#0f253f',
+          strokeWeight: 1.4,
+        },
+      });
+      routeDrawingState.markers.push(marker);
+    });
+
+    if (routeDrawingState.points.length > 1) {
+      routeDrawingState.rawPolyline = new google.maps.Polyline({
+        map: mapInstance,
+        path: routeDrawingState.points,
+        strokeColor: '#f77f00',
+        strokeWeight: 4,
+        strokeOpacity: 0.85,
+        icons: [
+          {
+            icon: {
+              path: 'M 0,-1 0,1',
+              strokeOpacity: 0.25,
+              scale: 4,
+            },
+            offset: '0',
+            repeat: '20px',
+          },
+        ],
+      });
+    }
+  }
+
+  if (routeDrawingState.snappedPoints.length > 1) {
+    routeDrawingState.snappedPolyline = new google.maps.Polyline({
+      map: mapInstance,
+      path: routeDrawingState.snappedPoints,
+      strokeColor: '#134074',
+      strokeWeight: 5,
+      strokeOpacity: 0.92,
+    });
+  }
+}
+
+function setRouteDrawingStatus(message, { lock = false, duration = 4000 } = {}) {
+  const statusEl = routeDrawingState.controls ? routeDrawingState.controls.status : null;
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  if (lock) {
+    statusEl.dataset.locked = 'true';
+    if (routeDrawingState.statusTimer) {
+      clearTimeout(routeDrawingState.statusTimer);
+    }
+    if (duration > 0) {
+      routeDrawingState.statusTimer = setTimeout(() => {
+        statusEl.removeAttribute('data-locked');
+        routeDrawingState.statusTimer = null;
+        updateRouteDrawingStatus();
+      }, duration);
+    }
+  } else {
+    statusEl.removeAttribute('data-locked');
+    if (routeDrawingState.statusTimer) {
+      clearTimeout(routeDrawingState.statusTimer);
+      routeDrawingState.statusTimer = null;
+    }
+  }
+}
+
+function updateRouteDrawingStatus() {
+  const statusEl = routeDrawingState.controls ? routeDrawingState.controls.status : null;
+  if (!statusEl || statusEl.dataset.locked === 'true') return;
+  if (!routeDrawingState.points.length) {
+    statusEl.textContent = 'Tap on the map to drop waypoints. Each tap adds a numbered marker and extends the orange guide line.';
+  } else if (routeDrawingState.points.length < 2) {
+    statusEl.textContent = 'Add at least one more waypoint so the route can be snapped to nearby roads.';
+  } else if (!routeDrawingState.snappedPoints.length) {
+    statusEl.textContent = 'Great! Hit “Snap to roads” to align the orange guide line with nearby streets.';
+  } else {
+    statusEl.textContent = 'Snapped path ready. Save the route to keep this map trace with your submission.';
+  }
+}
+
+function updateRouteDrawingList() {
+  const listEl = routeDrawingState.controls ? routeDrawingState.controls.list : null;
+  if (!listEl) return;
+  listEl.textContent = '';
+  if (!routeDrawingState.points.length) {
+    const empty = document.createElement('li');
+    empty.className = 'map-draw-list__empty';
+    empty.textContent = 'No waypoints yet. Start plotting to build the path.';
+    listEl.appendChild(empty);
+    return;
+  }
+  routeDrawingState.points.forEach((point, index) => {
+    if (!point) return;
+    const item = document.createElement('li');
+    item.innerHTML = `<strong>${index + 1}.</strong> ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+    listEl.appendChild(item);
+  });
+}
+
+function updateRouteDrawingButtons() {
+  const controls = routeDrawingState.controls;
+  if (!controls) return;
+  const { toggle, toggleLabel, snap, clear } = controls;
+  if (toggle) {
+    toggle.classList.toggle('is-active', routeDrawingState.active);
+    toggle.setAttribute('aria-pressed', routeDrawingState.active ? 'true' : 'false');
+    if (toggleLabel) {
+      toggleLabel.textContent = routeDrawingState.active ? 'Stop plotting' : 'Start plotting';
+    }
+  }
+  if (snap) {
+    snap.disabled = routeDrawingState.points.length < 2;
+  }
+  if (clear) {
+    clear.disabled = routeDrawingState.points.length === 0 && routeDrawingState.snappedPoints.length === 0;
+  }
+}
+
+function updateRouteDrawingUI() {
+  updateRouteDrawingStatus();
+  updateRouteDrawingList();
+  updateRouteDrawingButtons();
+}
+
+function setRouteDrawingControls(controls) {
+  if (!controls) return;
+  routeDrawingState.controls = {
+    ...controls,
+    toggleLabel: controls.toggle ? controls.toggle.querySelector('span:last-child') : null,
+  };
+  updateRouteDrawingUI();
+}
+
+function setRouteDrawingPoints(points = [], snappedPoints = []) {
+  stopRouteDrawingInteraction();
+  routeDrawingState.points = Array.isArray(points)
+    ? points.map(normaliseLatLng).filter(Boolean)
+    : [];
+  routeDrawingState.snappedPoints = Array.isArray(snappedPoints)
+    ? snappedPoints.map(normaliseLatLng).filter(Boolean)
+    : [];
+  if (!routeDrawingState.points.length) {
+    routeDrawingState.snappedPoints = [];
+  }
+  renderRouteDrawingOverlays();
+  updateRouteDrawingUI();
+}
+
+function stopRouteDrawingInteraction() {
+  if (routeDrawingState.clickListener) {
+    google.maps.event.removeListener(routeDrawingState.clickListener);
+    routeDrawingState.clickListener = null;
+  }
+  routeDrawingState.active = false;
+}
+
+function setRouteDrawingActive(active) {
+  if (!mapInstance) {
+    routeDrawingState.active = false;
+    updateRouteDrawingUI();
+    return;
+  }
+  if (active) {
+    if (routeDrawingState.clickListener) {
+      google.maps.event.removeListener(routeDrawingState.clickListener);
+    }
+    routeDrawingState.clickListener = mapInstance.addListener('click', event => {
+      if (!event || !event.latLng) return;
+      const lat = event.latLng.lat();
+      const lng = event.latLng.lng();
+      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+      routeDrawingState.points.push({ lat, lng });
+      routeDrawingState.snappedPoints = [];
+      renderRouteDrawingOverlays();
+      updateRouteDrawingUI();
+      updateRouteDrawingStatus();
+    });
+    routeDrawingState.active = true;
+    setRouteDrawingStatus('Tap on the map to drop waypoints. Each tap adds a numbered marker and extends the orange guide line.');
+  } else {
+    stopRouteDrawingInteraction();
+  }
+  updateRouteDrawingUI();
+}
+
+function clearRouteDrawing() {
+  stopRouteDrawingInteraction();
+  setRouteDrawingPoints([], []);
+  setRouteDrawingStatus('Tap on the map to drop waypoints. Each tap adds a numbered marker and extends the orange guide line.');
+  updateRouteDrawingStatus();
+}
+
+function getRouteDrawingData() {
+  return {
+    path: routeDrawingState.points.map(point => ({ ...point })),
+    snappedPath: routeDrawingState.snappedPoints.map(point => ({ ...point })),
+  };
+}
+
+async function snapRouteDrawingPath() {
+  if (routeDrawingState.points.length < 2) {
+    setRouteDrawingStatus('Add at least two points before snapping the route.', { lock: true });
+    return;
+  }
+  if (routeDrawingState.points.length > 100) {
+    setRouteDrawingStatus('That is a long trace. Snap supports up to 100 points—clear a few waypoints and try again.', { lock: true });
+    return;
+  }
+  if (!googleMapsApiKey) {
+    setRouteDrawingStatus('Google Maps API key unavailable. Refresh the page and try again.', { lock: true });
+    return;
+  }
+  const pathParam = routeDrawingState.points
+    .map(point => `${point.lat},${point.lng}`)
+    .join('|');
+  try {
+    setRouteDrawingStatus('Snapping route to nearby roads…', { lock: true, duration: 0 });
+    const response = await fetch(`https://roads.googleapis.com/v1/snapToRoads?path=${encodeURIComponent(pathParam)}&interpolate=true&key=${googleMapsApiKey}`);
+    if (!response.ok) {
+      throw new Error('Unable to snap route. Try again in a moment.');
+    }
+    const data = await response.json();
+    if (!data || !Array.isArray(data.snappedPoints) || !data.snappedPoints.length) {
+      throw new Error('No snapped route returned. Try plotting additional waypoints.');
+    }
+    routeDrawingState.snappedPoints = data.snappedPoints
+      .map(point => normaliseLatLng({ lat: point.location.latitude, lng: point.location.longitude }))
+      .filter(Boolean);
+    renderRouteDrawingOverlays();
+    updateRouteDrawingUI();
+    setRouteDrawingStatus('Route snapped to nearby roads. Review the blue line and save when you are happy.', { lock: true });
+  } catch (err) {
+    console.error(err);
+    setRouteDrawingStatus(err.message || 'Unable to snap route right now.', { lock: true });
   }
 }
 
@@ -1168,12 +1470,16 @@ function getRouteFormData(form) {
   if (fareMax !== null && fareMax !== '') fare.max = Number(fareMax);
   if (fareCurrency) fare.currency = fareCurrency;
 
+  const drawingData = getRouteDrawingData();
+
   return {
     routeId: routeId ? Number(routeId) : null,
     name,
     gesture,
     fare,
     stops,
+    path: drawingData.path,
+    snappedPath: drawingData.snappedPath,
   };
 }
 
@@ -1190,6 +1496,13 @@ function setRouteFormData(form, route) {
   stopsContainer.textContent = '';
   const stops = route && Array.isArray(route.stops) && route.stops.length ? route.stops : [{ name: '', lat: '', lng: '' }];
   stops.forEach(stop => addStopRow(stopsContainer, stop));
+
+  const fallbackPath = stops
+    .map(normaliseLatLng)
+    .filter(Boolean);
+  const pathPoints = route && Array.isArray(route.path) && route.path.length ? route.path : fallbackPath;
+  const snappedPoints = route && Array.isArray(route.snappedPath) ? route.snappedPath : [];
+  setRouteDrawingPoints(pathPoints, snappedPoints);
 }
 
 function addStopRow(container, stop = { name: '', lat: '', lng: '' }) {
@@ -1222,8 +1535,21 @@ function initRouteAdder() {
   const newButton = document.getElementById('route-new');
   const addStopButton = document.getElementById('add-stop');
   const deleteButton = document.getElementById('route-delete');
+  const drawToggle = document.getElementById('route-draw-toggle');
+  const snapButton = document.getElementById('route-snap');
+  const clearButton = document.getElementById('route-clear-path');
+  const drawStatus = document.getElementById('route-draw-status');
+  const drawList = document.getElementById('route-draw-points');
 
   if (!form || !select || !status) return;
+
+  setRouteDrawingControls({
+    toggle: drawToggle,
+    snap: snapButton,
+    clear: clearButton,
+    status: drawStatus,
+    list: drawList,
+  });
 
   function updateAccess() {
     const user = getCurrentUser();
@@ -1377,6 +1703,46 @@ function initRouteAdder() {
       addStopRow(container);
     });
   }
+
+  if (drawToggle) {
+    drawToggle.addEventListener('click', () => {
+      const shouldActivate = !routeDrawingState.active;
+      setRouteDrawingActive(shouldActivate);
+    });
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener('click', () => {
+      clearRouteDrawing();
+      updateRouteDrawingUI();
+    });
+  }
+
+  if (snapButton) {
+    snapButton.addEventListener('click', async () => {
+      snapButton.disabled = true;
+      try {
+        await snapRouteDrawingPath();
+      } finally {
+        updateRouteDrawingButtons();
+      }
+    });
+  }
+
+  document.addEventListener('panel:open', event => {
+    if (event && event.detail && event.detail.panelId === 'route-adder') {
+      updateRouteDrawingUI();
+      renderRouteDrawingOverlays();
+    }
+  });
+
+  document.addEventListener('panel:close', event => {
+    if (event && event.detail && event.detail.panelId === 'route-adder') {
+      stopRouteDrawingInteraction();
+      updateRouteDrawingButtons();
+      clearRouteDrawingOverlays();
+    }
+  });
 
   const stopsContainer = form.querySelector('[data-stops-container]');
   if (stopsContainer) {

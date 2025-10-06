@@ -76,6 +76,22 @@
         <div data-stops-container class="stops-editor__list"></div>
       </div>
 
+      <div class="map-draw-card">
+        <div class="map-draw-card__header">
+          <h2>Map this route</h2>
+          <div class="map-draw-card__actions">
+            <button type="button" id="route-draw-toggle" class="button-ghost" aria-pressed="false">
+              <span class="button-icon" aria-hidden="true"></span>
+              <span>Start plotting</span>
+            </button>
+            <button type="button" id="route-snap" class="button-primary" disabled>Snap to roads</button>
+            <button type="button" id="route-clear-path" class="button-secondary">Clear path</button>
+          </div>
+        </div>
+        <p id="route-draw-status" class="help-text">Tap on the map to drop waypoints. Each tap adds a numbered marker and extends the orange guide line.</p>
+        <ol id="route-draw-points" class="map-draw-list" aria-live="polite"></ol>
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="button-primary">Save route</button>
         <button type="button" id="route-delete" class="button-danger">Delete route</button>
