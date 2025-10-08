@@ -108,6 +108,9 @@ function sanitizeRoute(route) {
     quietHours,
     path,
     snappedPath,
+    encodedPolyline,
+    distanceMeters,
+    durationSeconds,
     variations,
   } = route;
 
@@ -124,6 +127,9 @@ function sanitizeRoute(route) {
     quietHours,
     path,
     snappedPath,
+    encodedPolyline,
+    distanceMeters,
+    durationSeconds,
     variations,
   };
 }
@@ -193,6 +199,9 @@ const server = http.createServer((req, res) => {
           quietHours: body.quietHours,
           path: body.path,
           snappedPath: body.snappedPath,
+          encodedPolyline: body.encodedPolyline,
+          distanceMeters: body.distanceMeters,
+          durationSeconds: body.durationSeconds,
           variations: body.variations,
           updatedBy: user.id,
           updatedAt: new Date().toISOString(),
@@ -235,6 +244,9 @@ const server = http.createServer((req, res) => {
           quietHours: body.quietHours,
           path: body.path,
           snappedPath: body.snappedPath,
+          encodedPolyline: body.encodedPolyline,
+          distanceMeters: body.distanceMeters,
+          durationSeconds: body.durationSeconds,
           variations: body.variations,
           updatedBy: user.id,
           updatedAt: new Date().toISOString(),

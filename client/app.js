@@ -24,6 +24,8 @@ const routeDrawingState = {
   active: false,
   points: [],
   snappedPoints: [],
+  metrics: null,
+  encodedPolyline: null,
   markers: [],
   rawPolyline: null,
   snappedPolyline: null,
@@ -32,6 +34,8 @@ const routeDrawingState = {
   statusTimer: null,
 };
 let cachedRoutes = null;
+
+const ROUTE_DRAW_LIMIT = 25;
 
 const communityTownships = [
   { name: 'Community Overview', href: '/community.html' },
@@ -758,6 +762,104 @@ function normaliseLatLng(point) {
   return { lat, lng };
 }
 
+function decodePolyline(encoded = '') {
+  if (!encoded || typeof encoded !== 'string') return [];
+  const coordinates = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+
+    const deltaLat = (result & 1) ? ~(result >> 1) : result >> 1;
+    lat += deltaLat;
+
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+
+    const deltaLng = (result & 1) ? ~(result >> 1) : result >> 1;
+    lng += deltaLng;
+
+    coordinates.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+
+  return coordinates;
+}
+
+function parseGoogleDuration(duration) {
+  if (!duration) return null;
+  if (typeof duration === 'string') {
+    const match = duration.match(/([0-9.]+)s/);
+    if (match) {
+      const seconds = parseFloat(match[1]);
+      return Number.isNaN(seconds) ? null : seconds;
+    }
+    return null;
+  }
+  if (typeof duration === 'object') {
+    const seconds = typeof duration.seconds === 'number' ? duration.seconds : parseFloat(duration.seconds);
+    const nanos = typeof duration.nanos === 'number' ? duration.nanos : parseFloat(duration.nanos);
+    const safeSeconds = Number.isNaN(seconds) ? 0 : seconds;
+    const safeNanos = Number.isNaN(nanos) ? 0 : nanos;
+    return safeSeconds + safeNanos / 1e9;
+  }
+  return null;
+}
+
+function formatDuration(seconds) {
+  if (typeof seconds !== 'number' || Number.isNaN(seconds) || seconds <= 0) return null;
+  const totalMinutes = Math.round(seconds / 60);
+  if (totalMinutes < 1) {
+    return '< 1 min';
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) {
+    return `${minutes} min`;
+  }
+  if (minutes === 0) {
+    return `${hours} hr${hours > 1 ? 's' : ''}`;
+  }
+  return `${hours} hr${hours > 1 ? 's' : ''} ${minutes} min`;
+}
+
+function formatDistance(meters) {
+  if (typeof meters !== 'number' || Number.isNaN(meters) || meters <= 0) return null;
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  const kilometres = meters / 1000;
+  const precision = kilometres >= 20 ? 0 : 1;
+  return `${kilometres.toFixed(precision)} km`;
+}
+
+function createRoutesWaypoint(point) {
+  if (!point) return null;
+  return {
+    location: {
+      latLng: {
+        latitude: point.lat,
+        longitude: point.lng,
+      },
+    },
+  };
+}
+
 function clearRouteDrawingOverlays() {
   routeDrawingState.markers.forEach(marker => marker.setMap(null));
   routeDrawingState.markers = [];
@@ -863,11 +965,18 @@ function updateRouteDrawingStatus() {
   if (!routeDrawingState.points.length) {
     statusEl.textContent = 'Tap on the map to drop waypoints. Each tap adds a numbered marker and extends the orange guide line.';
   } else if (routeDrawingState.points.length < 2) {
-    statusEl.textContent = 'Add at least one more waypoint so the route can be snapped to nearby roads.';
+    statusEl.textContent = 'Add at least one more waypoint so the route can be aligned with Google Routes.';
   } else if (!routeDrawingState.snappedPoints.length) {
-    statusEl.textContent = 'Great! Hit “Snap to roads” to align the orange guide line with nearby streets.';
+    statusEl.textContent = 'Great! Hit “Snap with Google Routes” to align the orange guide line with nearby streets.';
   } else {
-    statusEl.textContent = 'Snapped path ready. Save the route to keep this map trace with your submission.';
+    const metrics = routeDrawingState.metrics || {};
+    const parts = [];
+    const distanceText = formatDistance(metrics.distanceMeters);
+    const durationText = formatDuration(metrics.durationSeconds);
+    if (distanceText) parts.push(distanceText);
+    if (durationText) parts.push(durationText);
+    const summary = parts.length ? ` (${parts.join(' · ')})` : '';
+    statusEl.textContent = `Snapped path ready${summary}. Save the route to keep this map trace with your submission.`;
   }
 }
 
@@ -935,6 +1044,8 @@ function setRouteDrawingPoints(points = [], snappedPoints = []) {
   if (!routeDrawingState.points.length) {
     routeDrawingState.snappedPoints = [];
   }
+  routeDrawingState.metrics = null;
+  routeDrawingState.encodedPolyline = null;
   renderRouteDrawingOverlays();
   updateRouteDrawingUI();
 }
@@ -962,8 +1073,14 @@ function setRouteDrawingActive(active) {
       const lat = event.latLng.lat();
       const lng = event.latLng.lng();
       if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+      if (routeDrawingState.points.length >= ROUTE_DRAW_LIMIT) {
+        setRouteDrawingStatus(`You can plot up to ${ROUTE_DRAW_LIMIT} waypoints for Google Routes. Remove a marker before adding another.`, { lock: true });
+        return;
+      }
       routeDrawingState.points.push({ lat, lng });
       routeDrawingState.snappedPoints = [];
+      routeDrawingState.metrics = null;
+      routeDrawingState.encodedPolyline = null;
       renderRouteDrawingOverlays();
       updateRouteDrawingUI();
       updateRouteDrawingStatus();
@@ -987,6 +1104,9 @@ function getRouteDrawingData() {
   return {
     path: routeDrawingState.points.map(point => ({ ...point })),
     snappedPath: routeDrawingState.snappedPoints.map(point => ({ ...point })),
+    encodedPolyline: routeDrawingState.encodedPolyline,
+    distanceMeters: routeDrawingState.metrics ? routeDrawingState.metrics.distanceMeters : null,
+    durationSeconds: routeDrawingState.metrics ? routeDrawingState.metrics.durationSeconds : null,
   };
 }
 
@@ -995,33 +1115,107 @@ async function snapRouteDrawingPath() {
     setRouteDrawingStatus('Add at least two points before snapping the route.', { lock: true });
     return;
   }
-  if (routeDrawingState.points.length > 100) {
-    setRouteDrawingStatus('That is a long trace. Snap supports up to 100 points—clear a few waypoints and try again.', { lock: true });
+  if (routeDrawingState.points.length > ROUTE_DRAW_LIMIT) {
+    setRouteDrawingStatus(`The Google Routes API supports up to ${ROUTE_DRAW_LIMIT} waypoints. Clear a few markers and try again.`, { lock: true });
     return;
   }
   if (!googleMapsApiKey) {
     setRouteDrawingStatus('Google Maps API key unavailable. Refresh the page and try again.', { lock: true });
     return;
   }
-  const pathParam = routeDrawingState.points
-    .map(point => `${point.lat},${point.lng}`)
-    .join('|');
   try {
-    setRouteDrawingStatus('Snapping route to nearby roads…', { lock: true, duration: 0 });
-    const response = await fetch(`https://roads.googleapis.com/v1/snapToRoads?path=${encodeURIComponent(pathParam)}&interpolate=true&key=${googleMapsApiKey}`);
-    if (!response.ok) {
-      throw new Error('Unable to snap route. Try again in a moment.');
+    setRouteDrawingStatus('Snapping route with Google Routes…', { lock: true, duration: 0 });
+
+    const origin = createRoutesWaypoint(routeDrawingState.points[0]);
+    const destination = createRoutesWaypoint(routeDrawingState.points[routeDrawingState.points.length - 1]);
+    if (!origin || !destination) {
+      throw new Error('Missing route endpoints. Try plotting the route again.');
     }
-    const data = await response.json();
-    if (!data || !Array.isArray(data.snappedPoints) || !data.snappedPoints.length) {
-      throw new Error('No snapped route returned. Try plotting additional waypoints.');
-    }
-    routeDrawingState.snappedPoints = data.snappedPoints
-      .map(point => normaliseLatLng({ lat: point.location.latitude, lng: point.location.longitude }))
+
+    const intermediates = routeDrawingState.points
+      .slice(1, -1)
+      .map(createRoutesWaypoint)
       .filter(Boolean);
+
+    const body = {
+      origin,
+      destination,
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_AWARE',
+      polylineEncoding: 'ENCODED_POLYLINE',
+      computeAlternativeRoutes: false,
+      languageCode: 'en-US',
+      units: 'METRIC',
+    };
+
+    if (intermediates.length) {
+      body.intermediates = intermediates;
+    }
+
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': googleMapsApiKey,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.polyline.encodedPolyline',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const text = await response.text();
+    let data = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.warn('Unable to parse Google Routes response', err);
+      }
+    }
+
+    if (!response.ok) {
+      const message = data && data.error && data.error.message ? data.error.message : 'Unable to snap route. Try again in a moment.';
+      throw new Error(message);
+    }
+
+    if (!data || !Array.isArray(data.routes) || !data.routes.length) {
+      throw new Error('No route returned. Try plotting additional waypoints.');
+    }
+
+    const route = data.routes[0];
+
+    let snappedPoints = [];
+    if (route.polyline && route.polyline.encodedPolyline) {
+      snappedPoints = decodePolyline(route.polyline.encodedPolyline).map(normaliseLatLng).filter(Boolean);
+    }
+
+    if (!snappedPoints.length && Array.isArray(route.legs)) {
+      route.legs.forEach(leg => {
+        if (leg && leg.polyline && leg.polyline.encodedPolyline) {
+          snappedPoints = snappedPoints.concat(
+            decodePolyline(leg.polyline.encodedPolyline).map(normaliseLatLng).filter(Boolean)
+          );
+        }
+      });
+    }
+
+    if (!snappedPoints.length) {
+      throw new Error('No route geometry returned. Try plotting additional waypoints.');
+    }
+
+    routeDrawingState.snappedPoints = snappedPoints;
+    routeDrawingState.metrics = {
+      distanceMeters: typeof route.distanceMeters === 'number' ? route.distanceMeters : null,
+      durationSeconds: parseGoogleDuration(route.duration),
+    };
+    routeDrawingState.encodedPolyline = route.polyline && route.polyline.encodedPolyline ? route.polyline.encodedPolyline : null;
     renderRouteDrawingOverlays();
     updateRouteDrawingUI();
-    setRouteDrawingStatus('Route snapped to nearby roads. Review the blue line and save when you are happy.', { lock: true });
+    const metrics = routeDrawingState.metrics || {};
+    const distanceText = formatDistance(metrics.distanceMeters);
+    const durationText = formatDuration(metrics.durationSeconds);
+    const summary = [distanceText, durationText].filter(Boolean).join(' · ');
+    const suffix = summary ? ` (${summary})` : '';
+    setRouteDrawingStatus(`Route snapped with Google Routes${suffix}. Review the blue line and save when you are happy.`, { lock: true });
   } catch (err) {
     console.error(err);
     setRouteDrawingStatus(err.message || 'Unable to snap route right now.', { lock: true });
@@ -1491,6 +1685,9 @@ function getRouteFormData(form) {
     stops,
     path: drawingData.path,
     snappedPath: drawingData.snappedPath,
+    encodedPolyline: drawingData.encodedPolyline,
+    distanceMeters: drawingData.distanceMeters,
+    durationSeconds: drawingData.durationSeconds,
   };
 }
 
@@ -1668,6 +1865,22 @@ function initRouteAdder() {
       fare: data.fare,
       stops: data.stops,
     };
+
+    if (Array.isArray(data.path)) {
+      payload.path = data.path;
+    }
+    if (Array.isArray(data.snappedPath)) {
+      payload.snappedPath = data.snappedPath;
+    }
+    if (data.encodedPolyline) {
+      payload.encodedPolyline = data.encodedPolyline;
+    }
+    if (typeof data.distanceMeters === 'number' && !Number.isNaN(data.distanceMeters)) {
+      payload.distanceMeters = data.distanceMeters;
+    }
+    if (typeof data.durationSeconds === 'number' && !Number.isNaN(data.durationSeconds)) {
+      payload.durationSeconds = data.durationSeconds;
+    }
 
     const isUpdate = Boolean(data.routeId);
     const path = isUpdate ? `/api/routes/${data.routeId}` : '/api/routes';
