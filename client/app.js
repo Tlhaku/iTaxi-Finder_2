@@ -581,22 +581,101 @@ function setupResponsiveNavigation() {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
   const toggle = topbar.querySelector('[data-nav-toggle]');
+  const navContainer = topbar.querySelector('[data-nav-container]');
+  const closeButton = topbar.querySelector('[data-nav-close]');
+  const backdrop = topbar.querySelector('[data-nav-backdrop]');
   const links = topbar.querySelector('[data-nav-links]');
-  if (!toggle || !links) return;
+  if (!toggle || !links || !navContainer) return;
 
   const navMediaQuery = window.matchMedia('(min-width: 900px)');
+  let restoreFocusTo = null;
+
+  const focusableSelectors = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(', ');
+
+  const getFocusableNavElements = () =>
+    Array.from(navContainer.querySelectorAll(focusableSelectors)).filter(element => {
+      if (element.closest('[aria-hidden="true"]')) return false;
+      const style = window.getComputedStyle(element);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      return !(element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true');
+    });
+
+  const setLinkFocusability = enabled => {
+    const focusableLinks = links.querySelectorAll('a, button');
+    focusableLinks.forEach(link => {
+      if (enabled) {
+        if (link.hasAttribute('data-nav-tabindex')) {
+          const original = link.getAttribute('data-nav-tabindex');
+          if (original) {
+            link.setAttribute('tabindex', original);
+          } else {
+            link.removeAttribute('tabindex');
+          }
+          link.removeAttribute('data-nav-tabindex');
+        } else if (link.getAttribute('tabindex') === '-1') {
+          link.removeAttribute('tabindex');
+        }
+      } else {
+        if (!link.hasAttribute('data-nav-tabindex')) {
+          const current = link.hasAttribute('tabindex') ? link.getAttribute('tabindex') : '';
+          link.setAttribute('data-nav-tabindex', current || '');
+        }
+        link.setAttribute('tabindex', '-1');
+      }
+    });
+  };
+
+  const toggleBodyScroll = shouldLock => {
+    document.body.classList.toggle('nav-open', Boolean(shouldLock));
+  };
 
   const setNavState = open => {
     const isDesktop = navMediaQuery.matches;
     const shouldOpen = Boolean(open) && !isDesktop;
     closeAccountMenu();
+
+    if (!isDesktop && shouldOpen) {
+      restoreFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+
     topbar.dataset.navOpen = shouldOpen ? 'true' : 'false';
     toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+
     if (isDesktop) {
-      links.hidden = false;
+      navContainer.setAttribute('aria-hidden', 'false');
+      links.setAttribute('aria-hidden', 'false');
+      setLinkFocusability(true);
+      toggleBodyScroll(false);
+      restoreFocusTo = null;
     } else {
-      links.hidden = !shouldOpen;
+      navContainer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      links.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+
+      if (shouldOpen) {
+        setLinkFocusability(true);
+        toggleBodyScroll(true);
+        const focusTarget = getFocusableNavElements()[0] || links.querySelector('a, button');
+        if (focusTarget && typeof focusTarget.focus === 'function') {
+          requestAnimationFrame(() => focusTarget.focus({ preventScroll: true }));
+        }
+      } else {
+        setLinkFocusability(false);
+        toggleBodyScroll(false);
+        const focusReturn = restoreFocusTo && typeof restoreFocusTo.focus === 'function'
+          ? restoreFocusTo
+          : toggle;
+        requestAnimationFrame(() => focusReturn.focus({ preventScroll: true }));
+        restoreFocusTo = null;
+      }
     }
+
     const mapElement = document.getElementById('map');
     if (mapElement) {
       repositionMapControls(mapElement);
@@ -607,25 +686,32 @@ function setupResponsiveNavigation() {
 
   setNavState(false);
 
+  const closeNav = () => setNavState(false);
+
   toggle.addEventListener('click', () => {
     if (navMediaQuery.matches) return;
     const isOpen = topbar.dataset.navOpen === 'true';
     setNavState(!isOpen);
   });
 
+  if (closeButton) {
+    closeButton.addEventListener('click', closeNav);
+  }
+
+  if (backdrop) {
+    backdrop.addEventListener('click', closeNav);
+  }
+
   links.addEventListener('click', event => {
     if (navMediaQuery.matches) return;
     if (event.target && event.target.closest('a')) {
-      setNavState(false);
+      closeNav();
     }
   });
 
   const handleBreakpointChange = event => {
     if (event && typeof event.matches === 'boolean') {
       setNavState(false);
-      if (event.matches) {
-        links.hidden = false;
-      }
     } else {
       setNavState(false);
     }
@@ -636,6 +722,32 @@ function setupResponsiveNavigation() {
   } else if (typeof navMediaQuery.addListener === 'function') {
     navMediaQuery.addListener(handleBreakpointChange);
   }
+
+  if (navContainer) {
+    navContainer.addEventListener('keydown', event => {
+      if (event.key !== 'Tab' || navMediaQuery.matches || topbar.dataset.navOpen !== 'true') return;
+      const focusableItems = getFocusableNavElements();
+      if (!focusableItems.length) return;
+      const first = focusableItems[0];
+      const last = focusableItems[focusableItems.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (active === first || !navContainer.contains(active)) {
+          event.preventDefault();
+          last.focus({ preventScroll: true });
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !navMediaQuery.matches && topbar.dataset.navOpen === 'true') {
+      closeNav();
+    }
+  });
 }
 
 function setAccountMenuOpen(state, open) {
