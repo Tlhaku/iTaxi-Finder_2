@@ -1275,7 +1275,7 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   gap: 10px;
 }
 
-.route-editor-panel button {
+.route-editor-panel button[data-editor-action] {
   appearance: none;
   border: none;
   border-radius: 12px;
@@ -1289,25 +1289,25 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   box-shadow: 0 15px 35px rgba(29, 78, 216, 0.25);
 }
 
-.route-editor-panel button.secondary {
+.route-editor-panel button[data-editor-action].secondary {
   background: rgba(15, 23, 42, 0.08);
   color: #0f172a;
   box-shadow: none;
 }
 
-.route-editor-panel button:hover,
-.route-editor-panel button:focus {
+.route-editor-panel button[data-editor-action]:hover,
+.route-editor-panel button[data-editor-action]:focus {
   transform: translateY(-2px);
   box-shadow: 0 20px 40px rgba(29, 78, 216, 0.3);
 }
 
-.route-editor-panel button.secondary:hover,
-.route-editor-panel button.secondary:focus {
+.route-editor-panel button[data-editor-action].secondary:hover,
+.route-editor-panel button[data-editor-action].secondary:focus {
   background: rgba(37, 99, 235, 0.14);
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
 }
 
-.route-editor-panel button:disabled {
+.route-editor-panel button[data-editor-action]:disabled {
   background: rgba(148, 163, 184, 0.35);
   color: rgba(15, 23, 42, 0.55);
   cursor: not-allowed;
@@ -2098,7 +2098,7 @@ body.page-route-finder #map::after {
     padding: 18px 20px 22px;
   }
 
-  .route-editor-panel button {
+  .route-editor-panel button[data-editor-action] {
     padding: 10px 12px;
     font-size: 0.9rem;
   }
@@ -2171,7 +2171,7 @@ body.page-route-finder #map::after {
     gap: 10px;
   }
 
-  .route-editor-panel button {
+  .route-editor-panel button[data-editor-action] {
     width: 100%;
     padding: 9px 12px;
   }
