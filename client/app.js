@@ -1124,8 +1124,7 @@ function enhanceOverlayChrome(overlay) {
 function bindOverlayDragging(overlay) {
   if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
-  const handle = overlay.querySelector('[data-drag-handle]') || overlay;
-  if (!handle) return;
+  const visualHandle = overlay.querySelector('[data-drag-handle]');
 
   try {
     const computedStyle = window.getComputedStyle(overlay);
@@ -1158,43 +1157,92 @@ function bindOverlayDragging(overlay) {
       return;
     }
 
-    event.preventDefault();
+    const scrollableAncestor = event.target && event.target.closest('[data-overlay-body]');
+    const canScroll = Boolean(
+      scrollableAncestor && scrollableAncestor.scrollHeight > scrollableAncestor.clientHeight
+    );
 
+    const pointerId = event.pointerId;
     const rect = overlay.getBoundingClientRect();
-    if (!overlay.dataset.dragConverted) {
-      overlay.dataset.dragConverted = 'true';
-      overlay.style.left = `${rect.left}px`;
-      overlay.style.top = `${rect.top}px`;
-      overlay.style.right = 'auto';
-      overlay.style.bottom = 'auto';
-      overlay.style.transform = 'none';
-    }
-
     const startX = event.clientX;
     const startY = event.clientY;
-    const startLeft = parseFloat(overlay.style.left) || rect.left;
-    const startTop = parseFloat(overlay.style.top) || rect.top;
-    const width = rect.width;
-    const height = rect.height;
-    const pointerId = event.pointerId;
+    let startLeft = parseFloat(overlay.style.left) || rect.left;
+    let startTop = parseFloat(overlay.style.top) || rect.top;
+    let width = rect.width;
+    let height = rect.height;
+    let dragging = false;
+
+    const startDrag = initialEvent => {
+      if (dragging) return;
+      dragging = true;
+
+      if (!overlay.dataset.dragConverted) {
+        overlay.dataset.dragConverted = 'true';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.right = 'auto';
+        overlay.style.bottom = 'auto';
+        overlay.style.transform = 'none';
+      }
+
+      const liveRect = overlay.getBoundingClientRect();
+      startLeft = parseFloat(overlay.style.left) || liveRect.left;
+      startTop = parseFloat(overlay.style.top) || liveRect.top;
+      width = liveRect.width;
+      height = liveRect.height;
+
+      if (initialEvent && typeof initialEvent.preventDefault === 'function') {
+        initialEvent.preventDefault();
+      }
+    };
+
+    const cleanup = shouldReposition => {
+      window.removeEventListener('pointermove', updatePosition);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+
+      if (shouldReposition) {
+        const mapElement = document.getElementById('map');
+        if (mapElement) {
+          repositionMapControls(mapElement);
+        }
+      }
+    };
 
     const updatePosition = moveEvent => {
       if (moveEvent.pointerId !== pointerId) return;
-      moveEvent.preventDefault();
 
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
+      const distance = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+
+      if (!dragging) {
+        if (distance < 4) {
+          return;
+        }
+
+        if (canScroll && Math.abs(deltaY) > Math.abs(deltaX)) {
+          cleanup(false);
+          return;
+        }
+
+        startDrag(moveEvent);
+      }
+
+      moveEvent.preventDefault();
+
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
       const margin = 12;
+      const edgeReveal = 4;
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
 
-      const minLeft = margin;
-      const minTop = margin;
-      const maxLeft = Math.max(minLeft, viewportWidth - width - margin);
-      const maxTop = Math.max(minTop, viewportHeight - height - margin);
+      const minLeft = Math.min(margin, edgeReveal - width);
+      const minTop = Math.min(margin, edgeReveal - height);
+      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - edgeReveal);
+      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - edgeReveal);
 
       nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
       nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
@@ -1203,40 +1251,21 @@ function bindOverlayDragging(overlay) {
       overlay.style.top = `${Math.round(nextTop)}px`;
     };
 
-    const endDrag = () => {
-      if (typeof handle.releasePointerCapture === 'function') {
-        try {
-          handle.releasePointerCapture(pointerId);
-        } catch (error) {
-          // no-op
-        }
-      }
-      handle.removeEventListener('pointermove', updatePosition);
-      handle.removeEventListener('pointerup', endDrag);
-      handle.removeEventListener('pointercancel', endDrag);
-
-      const mapElement = document.getElementById('map');
-      if (mapElement) {
-        repositionMapControls(mapElement);
-      }
+    const endDrag = endEvent => {
+      if (endEvent.pointerId !== pointerId) return;
+      cleanup(dragging);
     };
 
-    if (typeof handle.setPointerCapture === 'function') {
-      try {
-        handle.setPointerCapture(pointerId);
-      } catch (error) {
-        // ignore capture errors
-      }
-    }
-
-    handle.addEventListener('pointermove', updatePosition);
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointermove', updatePosition);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
   };
 
-  handle.style.cursor = 'move';
-  handle.style.touchAction = 'none';
-  handle.addEventListener('pointerdown', handlePointerDown);
+  if (visualHandle) {
+    visualHandle.style.cursor = 'grab';
+  }
+
+  overlay.addEventListener('pointerdown', handlePointerDown);
   overlay.dataset.draggableBound = 'true';
 }
 
