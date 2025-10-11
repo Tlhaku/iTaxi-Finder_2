@@ -581,22 +581,101 @@ function setupResponsiveNavigation() {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
   const toggle = topbar.querySelector('[data-nav-toggle]');
+  const navContainer = topbar.querySelector('[data-nav-container]');
+  const closeButton = topbar.querySelector('[data-nav-close]');
+  const backdrop = topbar.querySelector('[data-nav-backdrop]');
   const links = topbar.querySelector('[data-nav-links]');
-  if (!toggle || !links) return;
+  if (!toggle || !links || !navContainer) return;
 
   const navMediaQuery = window.matchMedia('(min-width: 900px)');
+  let restoreFocusTo = null;
+
+  const focusableSelectors = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(', ');
+
+  const getFocusableNavElements = () =>
+    Array.from(navContainer.querySelectorAll(focusableSelectors)).filter(element => {
+      if (element.closest('[aria-hidden="true"]')) return false;
+      const style = window.getComputedStyle(element);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      return !(element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true');
+    });
+
+  const setLinkFocusability = enabled => {
+    const focusableLinks = links.querySelectorAll('a, button');
+    focusableLinks.forEach(link => {
+      if (enabled) {
+        if (link.hasAttribute('data-nav-tabindex')) {
+          const original = link.getAttribute('data-nav-tabindex');
+          if (original) {
+            link.setAttribute('tabindex', original);
+          } else {
+            link.removeAttribute('tabindex');
+          }
+          link.removeAttribute('data-nav-tabindex');
+        } else if (link.getAttribute('tabindex') === '-1') {
+          link.removeAttribute('tabindex');
+        }
+      } else {
+        if (!link.hasAttribute('data-nav-tabindex')) {
+          const current = link.hasAttribute('tabindex') ? link.getAttribute('tabindex') : '';
+          link.setAttribute('data-nav-tabindex', current || '');
+        }
+        link.setAttribute('tabindex', '-1');
+      }
+    });
+  };
+
+  const toggleBodyScroll = shouldLock => {
+    document.body.classList.toggle('nav-open', Boolean(shouldLock));
+  };
 
   const setNavState = open => {
     const isDesktop = navMediaQuery.matches;
     const shouldOpen = Boolean(open) && !isDesktop;
     closeAccountMenu();
+
+    if (!isDesktop && shouldOpen) {
+      restoreFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+
     topbar.dataset.navOpen = shouldOpen ? 'true' : 'false';
     toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+
     if (isDesktop) {
-      links.hidden = false;
+      navContainer.setAttribute('aria-hidden', 'false');
+      links.setAttribute('aria-hidden', 'false');
+      setLinkFocusability(true);
+      toggleBodyScroll(false);
+      restoreFocusTo = null;
     } else {
-      links.hidden = !shouldOpen;
+      navContainer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      links.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+
+      if (shouldOpen) {
+        setLinkFocusability(true);
+        toggleBodyScroll(true);
+        const focusTarget = getFocusableNavElements()[0] || links.querySelector('a, button');
+        if (focusTarget && typeof focusTarget.focus === 'function') {
+          requestAnimationFrame(() => focusTarget.focus({ preventScroll: true }));
+        }
+      } else {
+        setLinkFocusability(false);
+        toggleBodyScroll(false);
+        const focusReturn = restoreFocusTo && typeof restoreFocusTo.focus === 'function'
+          ? restoreFocusTo
+          : toggle;
+        requestAnimationFrame(() => focusReturn.focus({ preventScroll: true }));
+        restoreFocusTo = null;
+      }
     }
+
     const mapElement = document.getElementById('map');
     if (mapElement) {
       repositionMapControls(mapElement);
@@ -607,25 +686,32 @@ function setupResponsiveNavigation() {
 
   setNavState(false);
 
+  const closeNav = () => setNavState(false);
+
   toggle.addEventListener('click', () => {
     if (navMediaQuery.matches) return;
     const isOpen = topbar.dataset.navOpen === 'true';
     setNavState(!isOpen);
   });
 
+  if (closeButton) {
+    closeButton.addEventListener('click', closeNav);
+  }
+
+  if (backdrop) {
+    backdrop.addEventListener('click', closeNav);
+  }
+
   links.addEventListener('click', event => {
     if (navMediaQuery.matches) return;
     if (event.target && event.target.closest('a')) {
-      setNavState(false);
+      closeNav();
     }
   });
 
   const handleBreakpointChange = event => {
     if (event && typeof event.matches === 'boolean') {
       setNavState(false);
-      if (event.matches) {
-        links.hidden = false;
-      }
     } else {
       setNavState(false);
     }
@@ -636,6 +722,32 @@ function setupResponsiveNavigation() {
   } else if (typeof navMediaQuery.addListener === 'function') {
     navMediaQuery.addListener(handleBreakpointChange);
   }
+
+  if (navContainer) {
+    navContainer.addEventListener('keydown', event => {
+      if (event.key !== 'Tab' || navMediaQuery.matches || topbar.dataset.navOpen !== 'true') return;
+      const focusableItems = getFocusableNavElements();
+      if (!focusableItems.length) return;
+      const first = focusableItems[0];
+      const last = focusableItems[focusableItems.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (active === first || !navContainer.contains(active)) {
+          event.preventDefault();
+          last.focus({ preventScroll: true });
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !navMediaQuery.matches && topbar.dataset.navOpen === 'true') {
+      closeNav();
+    }
+  });
 }
 
 function setAccountMenuOpen(state, open) {
@@ -1124,8 +1236,11 @@ function enhanceOverlayChrome(overlay) {
 function bindOverlayDragging(overlay) {
   if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
-  const handle = overlay.querySelector('[data-drag-handle]') || overlay;
-  if (!handle) return;
+  const explicitHandle = overlay.querySelector('[data-drag-handle]');
+  const dragTargets = new Set([overlay]);
+  if (explicitHandle && explicitHandle !== overlay) {
+    dragTargets.add(explicitHandle);
+  }
 
   try {
     const computedStyle = window.getComputedStyle(overlay);
@@ -1150,6 +1265,12 @@ function bindOverlayDragging(overlay) {
   }
 
   const handlePointerDown = event => {
+    const dragSource = event.currentTarget;
+
+    if (!dragSource) {
+      return;
+    }
+
     if (event.pointerType === 'mouse' && event.button !== 0) {
       return;
     }
@@ -1157,8 +1278,6 @@ function bindOverlayDragging(overlay) {
     if (event.target && event.target.closest('[data-overlay-toggle]')) {
       return;
     }
-
-    event.preventDefault();
 
     const rect = overlay.getBoundingClientRect();
     if (!overlay.dataset.dragConverted) {
@@ -1172,29 +1291,70 @@ function bindOverlayDragging(overlay) {
 
     const startX = event.clientX;
     const startY = event.clientY;
-    const startLeft = parseFloat(overlay.style.left) || rect.left;
-    const startTop = parseFloat(overlay.style.top) || rect.top;
+    const parsedLeft = Number.parseFloat(overlay.style.left);
+    const parsedTop = Number.parseFloat(overlay.style.top);
+    const startLeft = Number.isFinite(parsedLeft) ? parsedLeft : rect.left;
+    const startTop = Number.isFinite(parsedTop) ? parsedTop : rect.top;
     const width = rect.width;
     const height = rect.height;
     const pointerId = event.pointerId;
+    if (overlay.dataset.dragPointerId && overlay.dataset.dragPointerId !== String(pointerId)) {
+      return;
+    }
+    overlay.dataset.dragPointerId = String(pointerId);
+    const pointerType = event.pointerType || '';
+    const isTouchLike = pointerType === 'touch' || pointerType === 'pen';
+    const dragThreshold = isTouchLike ? 0 : dragSource === overlay ? 6 : 0;
+    let dragging = false;
+    let captured = false;
+    const captureTarget = overlay;
+
+    const removeWindowListeners = () => {
+      window.removeEventListener('pointermove', updatePosition);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+    };
 
     const updatePosition = moveEvent => {
       if (moveEvent.pointerId !== pointerId) return;
-      moveEvent.preventDefault();
 
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
+
+      if (!dragging) {
+        const distance = Math.hypot(deltaX, deltaY);
+        if (distance < dragThreshold) {
+          return;
+        }
+
+        dragging = true;
+
+        if (!captured && captureTarget && typeof captureTarget.setPointerCapture === 'function') {
+          try {
+            captureTarget.setPointerCapture(pointerId);
+            captured = true;
+          } catch (error) {
+            captured = false;
+          }
+        }
+      }
+
+      if (moveEvent.cancelable) {
+        moveEvent.preventDefault();
+      }
+
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
-      const margin = 12;
+      const horizontalReveal = Math.min(Math.max(width * 0.01, 2), 12);
+      const verticalReveal = Math.min(Math.max(height * 0.01, 2), 12);
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
 
-      const minLeft = margin;
-      const minTop = margin;
-      const maxLeft = Math.max(minLeft, viewportWidth - width - margin);
-      const maxTop = Math.max(minTop, viewportHeight - height - margin);
+      const minLeft = horizontalReveal - width;
+      const maxLeft = Math.max(minLeft, viewportWidth - horizontalReveal);
+      const minTop = verticalReveal - height;
+      const maxTop = Math.max(minTop, viewportHeight - verticalReveal);
 
       nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
       nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
@@ -1203,17 +1363,26 @@ function bindOverlayDragging(overlay) {
       overlay.style.top = `${Math.round(nextTop)}px`;
     };
 
-    const endDrag = () => {
-      if (typeof handle.releasePointerCapture === 'function') {
+    const endDrag = endEvent => {
+      if (endEvent.pointerId !== pointerId) return;
+
+      removeWindowListeners();
+
+      if (overlay.dataset.dragPointerId === String(pointerId)) {
+        delete overlay.dataset.dragPointerId;
+      }
+
+      if (dragging && captured && captureTarget && typeof captureTarget.releasePointerCapture === 'function') {
         try {
-          handle.releasePointerCapture(pointerId);
+          captureTarget.releasePointerCapture(pointerId);
         } catch (error) {
           // no-op
         }
       }
-      handle.removeEventListener('pointermove', updatePosition);
-      handle.removeEventListener('pointerup', endDrag);
-      handle.removeEventListener('pointercancel', endDrag);
+
+      if (dragging && endEvent.cancelable) {
+        endEvent.preventDefault();
+      }
 
       const mapElement = document.getElementById('map');
       if (mapElement) {
@@ -1221,22 +1390,25 @@ function bindOverlayDragging(overlay) {
       }
     };
 
-    if (typeof handle.setPointerCapture === 'function') {
-      try {
-        handle.setPointerCapture(pointerId);
-      } catch (error) {
-        // ignore capture errors
-      }
+    if (dragSource !== overlay && event.cancelable) {
+      event.preventDefault();
     }
 
-    handle.addEventListener('pointermove', updatePosition);
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointermove', updatePosition, { passive: false });
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
   };
 
-  handle.style.cursor = 'move';
-  handle.style.touchAction = 'none';
-  handle.addEventListener('pointerdown', handlePointerDown);
+  dragTargets.forEach(target => {
+    const useCapture = target === overlay;
+    target.addEventListener('pointerdown', handlePointerDown, { passive: false, capture: useCapture });
+  });
+
+  if (explicitHandle) {
+    explicitHandle.style.cursor = 'move';
+    explicitHandle.style.touchAction = 'none';
+  }
+
   overlay.dataset.draggableBound = 'true';
 }
 
