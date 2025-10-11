@@ -1236,7 +1236,7 @@ function enhanceOverlayChrome(overlay) {
 function bindOverlayDragging(overlay) {
   if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
-  const handle = overlay.querySelector('[data-drag-handle]');
+  const visualHandle = overlay.querySelector('[data-drag-handle]');
 
   try {
     const computedStyle = window.getComputedStyle(overlay);
@@ -1276,34 +1276,54 @@ function bindOverlayDragging(overlay) {
       return;
     }
 
-    const rect = overlay.getBoundingClientRect();
-    if (!overlay.dataset.dragConverted) {
-      overlay.dataset.dragConverted = 'true';
-      overlay.style.left = `${rect.left}px`;
-      overlay.style.top = `${rect.top}px`;
-      overlay.style.right = 'auto';
-      overlay.style.bottom = 'auto';
-      overlay.style.transform = 'none';
-    }
+    const scrollableAncestor = event.target && event.target.closest('[data-overlay-body]');
+    const canScroll = Boolean(
+      scrollableAncestor && scrollableAncestor.scrollHeight > scrollableAncestor.clientHeight
+    );
 
+    const pointerId = event.pointerId;
+    const rect = overlay.getBoundingClientRect();
     const startX = event.clientX;
     const startY = event.clientY;
-    const startLeft = parseFloat(overlay.style.left) || rect.left;
-    const startTop = parseFloat(overlay.style.top) || rect.top;
-    const width = rect.width;
-    const height = rect.height;
-    const pointerId = event.pointerId;
-    const pointerTarget = overlay;
+    let startLeft = parseFloat(overlay.style.left) || rect.left;
+    let startTop = parseFloat(overlay.style.top) || rect.top;
+    let width = rect.width;
+    let height = rect.height;
     let dragging = false;
 
-    const startDrag = moveEvent => {
+    const startDrag = initialEvent => {
       if (dragging) return;
       dragging = true;
-      if (typeof pointerTarget.setPointerCapture === 'function') {
-        try {
-          pointerTarget.setPointerCapture(pointerId);
-        } catch (error) {
-          // ignore capture errors
+
+      if (!overlay.dataset.dragConverted) {
+        overlay.dataset.dragConverted = 'true';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.right = 'auto';
+        overlay.style.bottom = 'auto';
+        overlay.style.transform = 'none';
+      }
+
+      const liveRect = overlay.getBoundingClientRect();
+      startLeft = parseFloat(overlay.style.left) || liveRect.left;
+      startTop = parseFloat(overlay.style.top) || liveRect.top;
+      width = liveRect.width;
+      height = liveRect.height;
+
+      if (initialEvent && typeof initialEvent.preventDefault === 'function') {
+        initialEvent.preventDefault();
+      }
+    };
+
+    const cleanup = shouldReposition => {
+      window.removeEventListener('pointermove', updatePosition);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+
+      if (shouldReposition) {
+        const mapElement = document.getElementById('map');
+        if (mapElement) {
+          repositionMapControls(mapElement);
         }
       }
     };
@@ -1313,31 +1333,35 @@ function bindOverlayDragging(overlay) {
 
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
+      const distance = Math.max(Math.abs(deltaX), Math.abs(deltaY));
 
       if (!dragging) {
-        const threshold = event.pointerType === 'touch' || moveEvent.pointerType === 'touch' ? 8 : 4;
-        if (Math.abs(deltaX) < threshold && Math.abs(deltaY) < threshold) {
+        if (distance < 4) {
           return;
         }
+
+        if (canScroll && Math.abs(deltaY) > Math.abs(deltaX)) {
+          cleanup(false);
+          return;
+        }
+
         startDrag(moveEvent);
       }
-
-      if (!dragging) return;
 
       moveEvent.preventDefault();
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
       const margin = 12;
-      const edgePeek = 32;
+      const edgeReveal = 4;
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
 
-      const minLeft = Math.min(edgePeek - width, margin);
-      const minTop = Math.min(edgePeek - height, margin);
-      const maxLeft = Math.max(viewportWidth - edgePeek, viewportWidth - width - margin);
-      const maxTop = Math.max(viewportHeight - edgePeek, viewportHeight - height - margin);
+      const minLeft = Math.min(margin, edgeReveal - width);
+      const minTop = Math.min(margin, edgeReveal - height);
+      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - edgeReveal);
+      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - edgeReveal);
 
       nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
       nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
@@ -1348,27 +1372,7 @@ function bindOverlayDragging(overlay) {
 
     const endDrag = endEvent => {
       if (endEvent.pointerId !== pointerId) return;
-
-      if (dragging) {
-        endEvent.preventDefault();
-      }
-
-      window.removeEventListener('pointermove', updatePosition);
-      window.removeEventListener('pointerup', endDrag);
-      window.removeEventListener('pointercancel', endDrag);
-
-      if (dragging && typeof pointerTarget.releasePointerCapture === 'function') {
-        try {
-          pointerTarget.releasePointerCapture(pointerId);
-        } catch (error) {
-          // ignore release errors
-        }
-      }
-
-      const mapElement = document.getElementById('map');
-      if (mapElement) {
-        repositionMapControls(mapElement);
-      }
+      cleanup(dragging);
     };
 
     window.addEventListener('pointermove', updatePosition);
@@ -1376,10 +1380,11 @@ function bindOverlayDragging(overlay) {
     window.addEventListener('pointercancel', endDrag);
   };
 
-  pointerTargets.forEach(target => {
-    target.addEventListener('pointerdown', handlePointerDown);
-  });
+  if (visualHandle) {
+    visualHandle.style.cursor = 'grab';
+  }
 
+  overlay.addEventListener('pointerdown', handlePointerDown);
   overlay.dataset.draggableBound = 'true';
 }
 
