@@ -5,6 +5,10 @@
   --overlay-minimized-height: clamp(48px, 9vh, 68px);
   --overlay-toggle-size: clamp(32px, 8vw, 40px);
   --overlay-handle-width: clamp(30px, 9vw, 48px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 }
 
 html, body {
@@ -41,6 +45,7 @@ body.map-background {
 }
 
 #topbar {
+  --topbar-padding-inline: clamp(18px, 6vw, 28px);
   position: fixed;
   top: 0;
   left: 0;
@@ -52,7 +57,9 @@ body.map-background {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 12px clamp(18px, 6vw, 28px);
+  padding: calc(12px + var(--safe-area-top)) var(--topbar-padding-inline);
+  padding-left: calc(var(--topbar-padding-inline) + var(--safe-area-left));
+  padding-right: calc(var(--topbar-padding-inline) + var(--safe-area-right));
   box-sizing: border-box;
   z-index: 1200;
   font-weight: 600;
@@ -63,6 +70,8 @@ body.map-background {
   border-left: 1px solid rgba(148, 163, 184, 0.2);
   border-right: 1px solid rgba(148, 163, 184, 0.2);
   border-bottom: 1px solid rgba(148, 163, 184, 0.32);
+  flex-wrap: wrap;
+  align-content: center;
 }
 
 #topbar a {
@@ -231,12 +240,25 @@ body.map-background {
 }
 
 @media (max-width: 899px) {
+  #topbar {
+    row-gap: 6px;
+  }
+
   .topbar__account {
-    width: 100%;
     order: 3;
+    flex: 1 0 100%;
+    width: calc(100% + (2 * var(--topbar-padding-inline)));
+    margin-left: calc(-1 * var(--topbar-padding-inline));
+    margin-right: calc(-1 * var(--topbar-padding-inline));
+    padding: 8px calc(var(--topbar-padding-inline) + var(--safe-area-right))
+      calc(14px + var(--safe-area-bottom))
+      calc(var(--topbar-padding-inline) + var(--safe-area-left));
+    box-sizing: border-box;
     justify-content: flex-start;
-    padding: 6px 0 12px;
-    border-top: 1px solid rgba(15, 23, 42, 0.16);
+    border-top: 1px solid rgba(15, 23, 42, 0.14);
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.82), rgba(226, 232, 240, 0.68));
+    border-bottom-left-radius: 22px;
+    border-bottom-right-radius: 22px;
   }
 
   .topbar__account-toggle {
@@ -246,9 +268,17 @@ body.map-background {
 
   .topbar__account-menu {
     position: static;
-    width: 100%;
-    margin-top: 12px;
+    width: calc(100% + (2 * var(--topbar-padding-inline)));
+    margin: 12px calc(-1 * var(--topbar-padding-inline)) 0;
+    padding: 16px calc(var(--topbar-padding-inline) + var(--safe-area-right)) 20px
+      calc(var(--topbar-padding-inline) + var(--safe-area-left));
     box-shadow: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    max-height: none;
+    height: auto;
   }
 
   .topbar__account-details {
@@ -543,11 +573,15 @@ body.nav-open {
 
 @media (min-width: 900px) {
   #topbar {
-    padding: 16px clamp(32px, 5vw, 48px);
+    --topbar-padding-inline: clamp(32px, 5vw, 48px);
+    padding: calc(16px + var(--safe-area-top)) var(--topbar-padding-inline);
+    padding-left: calc(var(--topbar-padding-inline) + var(--safe-area-left));
+    padding-right: calc(var(--topbar-padding-inline) + var(--safe-area-right));
     gap: 20px;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16);
+    flex-wrap: nowrap;
   }
 
   .topbar__menu {
