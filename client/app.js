@@ -604,6 +604,8 @@ function setupResponsiveNavigation() {
 
     if (isDesktop) {
       navContainer.style.removeProperty('--mobile-nav-max-height');
+      navContainer.style.removeProperty('--mobile-nav-height');
+      navContainer.classList.remove('mobile-nav--scrollable');
       return;
     }
 
@@ -640,7 +642,7 @@ function setupResponsiveNavigation() {
 
     totalHeight = Math.ceil(totalHeight);
 
-    const safeSpacing = Math.max(0, Math.round(viewportHeight * 0.02));
+    const safeSpacing = Math.max(12, Math.round(viewportHeight * 0.015));
     const availableHeight = Math.max(0, Math.round(viewportHeight - safeSpacing));
     let targetHeight = totalHeight;
     if (availableHeight && totalHeight > availableHeight) {
@@ -649,10 +651,15 @@ function setupResponsiveNavigation() {
 
     if (!targetHeight || targetHeight <= 0) {
       navContainer.style.removeProperty('--mobile-nav-max-height');
+      navContainer.style.removeProperty('--mobile-nav-height');
+      navContainer.classList.remove('mobile-nav--scrollable');
       return;
     }
 
     navContainer.style.setProperty('--mobile-nav-max-height', `${targetHeight}px`);
+    navContainer.style.setProperty('--mobile-nav-height', `${targetHeight}px`);
+    const needsScroll = totalHeight - targetHeight > 1;
+    navContainer.classList.toggle('mobile-nav--scrollable', needsScroll);
   };
 
   const focusableSelectors = [
@@ -1332,17 +1339,17 @@ function bindOverlayDragging(overlay) {
   const visualHandle = overlay.querySelector('[data-drag-handle]');
   const computeHorizontalPeek = size => {
     if (!Number.isFinite(size) || size <= 0) return 0;
-    const preferred = Math.round(size * 0.3);
-    const clamped = Math.max(72, Math.min(preferred, 140));
-    const maxVisible = Math.max(size - 24, Math.round(size * 0.65));
-    return Math.max(32, Math.min(clamped, maxVisible));
+    const preferred = Math.round(size * 0.32);
+    const base = Math.max(108, Math.min(preferred, 184));
+    const maxVisible = Math.max(size - 24, Math.round(size * 0.75));
+    return Math.min(Math.max(base, 96), maxVisible);
   };
   const computeVerticalPeek = size => {
     if (!Number.isFinite(size) || size <= 0) return 0;
-    const preferred = Math.round(size * 0.35);
-    const clamped = Math.max(60, Math.min(preferred, 128));
-    const maxVisible = Math.max(size - 28, Math.round(size * 0.7));
-    return Math.max(36, Math.min(clamped, maxVisible));
+    const preferred = Math.round(size * 0.38);
+    const base = Math.max(88, Math.min(preferred, 152));
+    const maxVisible = Math.max(size - 28, Math.round(size * 0.78));
+    return Math.min(Math.max(base, 72), maxVisible);
   };
 
   try {
@@ -1444,7 +1451,7 @@ function bindOverlayDragging(overlay) {
         const liveRect = overlay.getBoundingClientRect();
         const viewportWidth = window.innerWidth || document.documentElement.clientWidth || liveRect.right;
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight || liveRect.bottom;
-        const margin = 16;
+        const margin = 20;
         const horizontalPeek = computeHorizontalPeek(liveRect.width);
         const verticalPeek = computeVerticalPeek(liveRect.height);
 
@@ -1509,7 +1516,7 @@ function bindOverlayDragging(overlay) {
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
-      const margin = 16;
+      const margin = 20;
       const horizontalPeek = computeHorizontalPeek(width);
       const verticalPeek = computeVerticalPeek(height);
 
