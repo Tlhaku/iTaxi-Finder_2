@@ -563,19 +563,6 @@ body.nav-open {
   outline-offset: 4px;
 }
 
-.topbar__links a::after {
-  content: '\u203A';
-  font-size: 1rem;
-  opacity: 0.55;
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.topbar__links a:hover::after,
-.topbar__links a:focus-visible::after {
-  transform: translateX(4px);
-  opacity: 0.85;
-}
-
 @media (min-width: 900px) {
   #topbar {
     --topbar-padding-inline: clamp(32px, 5vw, 48px);

@@ -98,9 +98,9 @@ function pageAllowsMobileBodyDrag() {
   if (typeof document === 'undefined' || !document.body) {
     return false;
   }
-  const allowedClasses = [
-    'page-route-adder',
-    'page-route-finder',
+  const { classList } = document.body;
+
+  const handleOnlyClasses = [
     'page-home',
     'page-delivery',
     'page-community',
@@ -108,9 +108,12 @@ function pageAllowsMobileBodyDrag() {
     'page-about',
   ];
 
-  return allowedClasses.some(className =>
-    document.body.classList.contains(className)
-  );
+  if (handleOnlyClasses.some(className => classList.contains(className))) {
+    return false;
+  }
+
+  const allowedClasses = ['page-route-adder', 'page-route-finder'];
+  return allowedClasses.some(className => classList.contains(className));
 }
 
 function notifyAuthChange(session) {
