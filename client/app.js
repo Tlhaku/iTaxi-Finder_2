@@ -1306,6 +1306,12 @@ function bindOverlayDragging(overlay) {
       if (initialEvent && typeof initialEvent.preventDefault === 'function') {
         initialEvent.preventDefault();
       }
+
+      try {
+        overlay.setPointerCapture(pointerId);
+      } catch (captureError) {
+        // Pointer capture may fail on unsupported browsers; ignore.
+      }
     };
 
     const cleanup = shouldReposition => {
@@ -1313,7 +1319,46 @@ function bindOverlayDragging(overlay) {
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
 
+      try {
+        if (
+          typeof overlay.hasPointerCapture === 'function' &&
+          overlay.hasPointerCapture(pointerId)
+        ) {
+          overlay.releasePointerCapture(pointerId);
+        }
+      } catch (releaseError) {
+        // Non-blocking.
+      }
+
+      const snapToEdges = () => {
+        const liveRect = overlay.getBoundingClientRect();
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || liveRect.right;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || liveRect.bottom;
+        const margin = 12;
+        const horizontalPeek = Math.max(28, Math.min(Math.round(liveRect.width * 0.2), 96));
+        const verticalPeek = Math.max(24, Math.min(Math.round(liveRect.height * 0.25), 80));
+
+        let nextLeft = parseFloat(overlay.style.left) || liveRect.left;
+        let nextTop = parseFloat(overlay.style.top) || liveRect.top;
+
+        if (nextLeft <= margin) {
+          nextLeft = Math.min(margin, horizontalPeek - liveRect.width);
+        } else if (nextLeft + liveRect.width >= viewportWidth - margin) {
+          nextLeft = Math.max(viewportWidth - horizontalPeek, viewportWidth - liveRect.width - margin);
+        }
+
+        if (nextTop <= margin) {
+          nextTop = Math.min(margin, verticalPeek - liveRect.height);
+        } else if (nextTop + liveRect.height >= viewportHeight - margin) {
+          nextTop = Math.max(viewportHeight - verticalPeek, viewportHeight - liveRect.height - margin);
+        }
+
+        overlay.style.left = `${Math.round(nextLeft)}px`;
+        overlay.style.top = `${Math.round(nextTop)}px`;
+      };
+
       if (shouldReposition) {
+        snapToEdges();
         const mapElement = document.getElementById('map');
         if (mapElement) {
           repositionMapControls(mapElement);
@@ -1346,15 +1391,16 @@ function bindOverlayDragging(overlay) {
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
       const margin = 12;
-      const edgeReveal = 4;
+      const horizontalPeek = Math.max(28, Math.min(Math.round(width * 0.2), 96));
+      const verticalPeek = Math.max(24, Math.min(Math.round(height * 0.25), 80));
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
 
-      const minLeft = Math.min(margin, edgeReveal - width);
-      const minTop = Math.min(margin, edgeReveal - height);
-      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - edgeReveal);
-      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - edgeReveal);
+      const minLeft = Math.min(margin, horizontalPeek - width);
+      const minTop = Math.min(margin, verticalPeek - height);
+      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - horizontalPeek);
+      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - verticalPeek);
 
       nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
       nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
