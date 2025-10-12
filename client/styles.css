@@ -355,11 +355,16 @@ body.nav-open {
   top: 0;
   right: 0;
   bottom: 0;
+  min-height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   width: min(340px, 82vw);
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: clamp(96px, 20vh, 140px) clamp(22px, 6vw, 32px) 28px;
+  padding: clamp(80px, 18vh, 120px) clamp(22px, 6vw, 32px) clamp(28px, 9vh, 44px);
+  padding-top: calc(env(safe-area-inset-top, 0) + 72px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0) + 36px);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(18px);
   box-shadow: -28px 0 60px rgba(15, 23, 42, 0.25);
@@ -371,6 +376,7 @@ body.nav-open {
   pointer-events: none;
   transition: transform 0.32s ease, opacity 0.32s ease, visibility 0.32s ease;
   overflow-y: auto;
+  box-sizing: border-box;
   scrollbar-gutter: stable;
   z-index: 1300;
 }
@@ -1038,6 +1044,12 @@ body.nav-open {
   box-sizing: border-box;
   pointer-events: auto;
   overflow: visible;
+  touch-action: none;
+  cursor: grab;
+}
+
+.overlay-panel:active {
+  cursor: grabbing;
 }
 
 .overlay-panel.route-adder-saved,
@@ -1099,6 +1111,10 @@ body.nav-open {
 
 .overlay-body {
   display: contents;
+}
+
+[data-overlay-body] {
+  touch-action: auto;
 }
 
 .overlay-toggle {
