@@ -589,6 +589,68 @@ function setupResponsiveNavigation() {
 
   const navMediaQuery = window.matchMedia('(min-width: 900px)');
   let restoreFocusTo = null;
+  const getViewportHeight = () => {
+    if (window.visualViewport && typeof window.visualViewport.height === 'number') {
+      return window.visualViewport.height;
+    }
+    return window.innerHeight || document.documentElement.clientHeight || 0;
+  };
+
+  const updateMobileNavHeight = () => {
+    if (!navContainer) return;
+
+    if (navMediaQuery.matches) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    const viewportHeight = getViewportHeight();
+    if (!viewportHeight) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    const computed = window.getComputedStyle(navContainer);
+    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
+    const columnGap =
+      Number.parseFloat(computed.rowGap || computed.columnGap || computed.gap) || 0;
+
+    const header = navContainer.querySelector('.mobile-nav__header');
+    const headerRect = header && header.isConnected ? header.getBoundingClientRect() : null;
+    const headerHeight = headerRect && Number.isFinite(headerRect.height)
+      ? headerRect.height
+      : 0;
+
+    let linksHeight = 0;
+    if (links && links.isConnected) {
+      linksHeight = links.scrollHeight;
+    }
+
+    let totalHeight = paddingTop + paddingBottom + linksHeight;
+    if (headerHeight) {
+      totalHeight += headerHeight;
+    }
+    if (headerHeight && linksHeight) {
+      totalHeight += columnGap;
+    }
+
+    totalHeight = Math.ceil(totalHeight);
+
+    const margin = Math.max(16, Math.min(48, Math.round(viewportHeight * 0.06)));
+    const availableHeight = Math.max(0, Math.round(viewportHeight - margin));
+    let targetHeight = totalHeight;
+    if (availableHeight && totalHeight > availableHeight) {
+      targetHeight = availableHeight;
+    }
+
+    if (!targetHeight || targetHeight <= 0) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    navContainer.style.setProperty('--mobile-nav-max-height', `${targetHeight}px`);
+  };
 
   const focusableSelectors = [
     'a[href]',
@@ -676,6 +738,8 @@ function setupResponsiveNavigation() {
       }
     }
 
+    updateMobileNavHeight();
+
     const mapElement = document.getElementById('map');
     if (mapElement) {
       repositionMapControls(mapElement);
@@ -685,6 +749,29 @@ function setupResponsiveNavigation() {
   };
 
   setNavState(false);
+
+  if (typeof ResizeObserver === 'function') {
+    const resizeObserver = new ResizeObserver(() => updateMobileNavHeight());
+    resizeObserver.observe(navContainer);
+    if (links) {
+      resizeObserver.observe(links);
+    }
+  }
+
+  const handleViewportChange = () => updateMobileNavHeight();
+  window.addEventListener('resize', handleViewportChange);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
+  }
+
+  if (typeof MutationObserver === 'function') {
+    const navMutationObserver = new MutationObserver(updateMobileNavHeight);
+    navMutationObserver.observe(links, { childList: true, subtree: true });
+  }
+
+  updateMobileNavHeight();
 
   const closeNav = () => setNavState(false);
 
@@ -1269,9 +1356,12 @@ function bindOverlayDragging(overlay) {
       return;
     }
 
-    const scrollableAncestor = event.target && event.target.closest('[data-overlay-body]');
+    const scrollableAncestor =
+      event.target && event.target.closest && event.target.closest('[data-overlay-body]');
+    const scrollElement =
+      scrollableAncestor instanceof HTMLElement ? scrollableAncestor : null;
     const canScroll = Boolean(
-      scrollableAncestor && scrollableAncestor.scrollHeight > scrollableAncestor.clientHeight
+      scrollElement && scrollElement.scrollHeight - scrollElement.clientHeight > 2
     );
 
     const pointerId = event.pointerId;
@@ -1306,6 +1396,12 @@ function bindOverlayDragging(overlay) {
       if (initialEvent && typeof initialEvent.preventDefault === 'function') {
         initialEvent.preventDefault();
       }
+
+      try {
+        overlay.setPointerCapture(pointerId);
+      } catch (captureError) {
+        // Pointer capture may fail on unsupported browsers; ignore.
+      }
     };
 
     const cleanup = shouldReposition => {
@@ -1313,7 +1409,46 @@ function bindOverlayDragging(overlay) {
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
 
+      try {
+        if (
+          typeof overlay.hasPointerCapture === 'function' &&
+          overlay.hasPointerCapture(pointerId)
+        ) {
+          overlay.releasePointerCapture(pointerId);
+        }
+      } catch (releaseError) {
+        // Non-blocking.
+      }
+
+      const snapToEdges = () => {
+        const liveRect = overlay.getBoundingClientRect();
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || liveRect.right;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || liveRect.bottom;
+        const margin = 12;
+        const horizontalPeek = Math.max(28, Math.min(Math.round(liveRect.width * 0.2), 96));
+        const verticalPeek = Math.max(24, Math.min(Math.round(liveRect.height * 0.25), 80));
+
+        let nextLeft = parseFloat(overlay.style.left) || liveRect.left;
+        let nextTop = parseFloat(overlay.style.top) || liveRect.top;
+
+        if (nextLeft <= margin) {
+          nextLeft = Math.min(margin, horizontalPeek - liveRect.width);
+        } else if (nextLeft + liveRect.width >= viewportWidth - margin) {
+          nextLeft = Math.max(viewportWidth - horizontalPeek, viewportWidth - liveRect.width - margin);
+        }
+
+        if (nextTop <= margin) {
+          nextTop = Math.min(margin, verticalPeek - liveRect.height);
+        } else if (nextTop + liveRect.height >= viewportHeight - margin) {
+          nextTop = Math.max(viewportHeight - verticalPeek, viewportHeight - liveRect.height - margin);
+        }
+
+        overlay.style.left = `${Math.round(nextLeft)}px`;
+        overlay.style.top = `${Math.round(nextTop)}px`;
+      };
+
       if (shouldReposition) {
+        snapToEdges();
         const mapElement = document.getElementById('map');
         if (mapElement) {
           repositionMapControls(mapElement);
@@ -1333,9 +1468,18 @@ function bindOverlayDragging(overlay) {
           return;
         }
 
-        if (canScroll && Math.abs(deltaY) > Math.abs(deltaX)) {
-          cleanup(false);
-          return;
+        if (canScroll && scrollElement && Math.abs(deltaY) >= Math.abs(deltaX)) {
+          const scrollTop = scrollElement.scrollTop;
+          const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
+          const movingDown = deltaY > 0;
+          const movingUp = deltaY < 0;
+          const canScrollDown = maxScroll - scrollTop > 1;
+          const canScrollUp = scrollTop > 1;
+
+          if ((movingDown && canScrollDown) || (movingUp && canScrollUp)) {
+            cleanup(false);
+            return;
+          }
         }
 
         startDrag(moveEvent);
@@ -1346,15 +1490,16 @@ function bindOverlayDragging(overlay) {
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
       const margin = 12;
-      const edgeReveal = 4;
+      const horizontalPeek = Math.max(28, Math.min(Math.round(width * 0.2), 96));
+      const verticalPeek = Math.max(24, Math.min(Math.round(height * 0.25), 80));
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
 
-      const minLeft = Math.min(margin, edgeReveal - width);
-      const minTop = Math.min(margin, edgeReveal - height);
-      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - edgeReveal);
-      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - edgeReveal);
+      const minLeft = Math.min(margin, horizontalPeek - width);
+      const minTop = Math.min(margin, verticalPeek - height);
+      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - horizontalPeek);
+      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - verticalPeek);
 
       nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
       nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
