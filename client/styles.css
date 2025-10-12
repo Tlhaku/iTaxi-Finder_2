@@ -2219,6 +2219,40 @@ body.page-route-finder #map::after {
     right: 10px;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
   }
+
+  body.page-home,
+  body.page-delivery,
+  body.page-community,
+  body.page-registration,
+  body.page-about {
+    --overlay-panel-top: 76px;
+    --overlay-panel-max-height: calc(100vh - 104px);
+  }
+
+  body.page-home .content-panel[data-draggable-overlay],
+  body.page-delivery .content-panel[data-draggable-overlay],
+  body.page-community .content-panel[data-draggable-overlay],
+  body.page-registration .content-panel[data-draggable-overlay],
+  body.page-about .content-panel[data-draggable-overlay] {
+    display: flex;
+    flex-direction: column;
+    width: min(360px, calc(100% - 24px));
+    max-height: min(88vh, calc(var(--overlay-panel-max-height) + 48px));
+    padding: 26px 24px 30px;
+    touch-action: pan-y;
+    overflow: hidden;
+  }
+
+  body.page-home .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-delivery .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-community .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-registration .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-about .content-panel[data-draggable-overlay] [data-overlay-body] {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 4px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -2317,5 +2351,22 @@ body.page-route-finder #map::after {
   .overlay-toggle {
     top: 8px;
     right: 8px;
+  }
+
+  body.page-home .content-panel[data-draggable-overlay],
+  body.page-delivery .content-panel[data-draggable-overlay],
+  body.page-community .content-panel[data-draggable-overlay],
+  body.page-registration .content-panel[data-draggable-overlay],
+  body.page-about .content-panel[data-draggable-overlay] {
+    width: min(340px, calc(100% - 20px));
+    padding: 24px 20px 28px;
+  }
+
+  body.page-home .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-delivery .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-community .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-registration .content-panel[data-draggable-overlay] [data-overlay-body],
+  body.page-about .content-panel[data-draggable-overlay] [data-overlay-body] {
+    padding-right: 2px;
   }
 }
