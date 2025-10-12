@@ -1260,13 +1260,6 @@ function bindOverlayDragging(overlay) {
     // non-blocking: styling hints best-effort only
   }
 
-  const pointerTargets = new Set([overlay]);
-  if (handle) {
-    pointerTargets.add(handle);
-    handle.style.cursor = 'move';
-    handle.style.touchAction = 'none';
-  }
-
   const handlePointerDown = event => {
     if (event.pointerType === 'mouse' && event.button !== 0) {
       return;
