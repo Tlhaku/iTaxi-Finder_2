@@ -98,9 +98,18 @@ function pageAllowsMobileBodyDrag() {
   if (typeof document === 'undefined' || !document.body) {
     return false;
   }
-  return (
-    document.body.classList.contains('page-route-adder') ||
-    document.body.classList.contains('page-route-finder')
+  const allowedClasses = [
+    'page-route-adder',
+    'page-route-finder',
+    'page-home',
+    'page-delivery',
+    'page-community',
+    'page-registration',
+    'page-about',
+  ];
+
+  return allowedClasses.some(className =>
+    document.body.classList.contains(className)
   );
 }
 
