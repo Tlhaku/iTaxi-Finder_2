@@ -357,7 +357,7 @@ body.nav-open {
   bottom: auto;
   --mobile-nav-max-height: 100dvh;
   max-height: min(100dvh, var(--mobile-nav-max-height));
-  height: min(100dvh, var(--mobile-nav-max-height));
+  height: auto;
   width: min(340px, 82vw);
   display: flex;
   flex-direction: column;
@@ -463,6 +463,15 @@ body.nav-open {
   pointer-events: none;
   transition: opacity 0.32s ease, visibility 0.32s ease;
   z-index: 1250;
+}
+
+#topbar[data-nav-mode='desktop'] .mobile-nav {
+  max-height: none;
+  height: auto;
+}
+
+#topbar[data-nav-mode='desktop'] .mobile-nav__backdrop {
+  display: none !important;
 }
 
 #topbar[data-nav-open="true"] .mobile-nav__backdrop {

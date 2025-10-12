@@ -599,7 +599,10 @@ function setupResponsiveNavigation() {
   const updateMobileNavHeight = () => {
     if (!navContainer) return;
 
-    if (navMediaQuery.matches) {
+    const isDesktop = navMediaQuery.matches;
+    topbar.dataset.navMode = isDesktop ? 'desktop' : 'overlay';
+
+    if (isDesktop) {
       navContainer.style.removeProperty('--mobile-nav-max-height');
       return;
     }
@@ -637,8 +640,8 @@ function setupResponsiveNavigation() {
 
     totalHeight = Math.ceil(totalHeight);
 
-    const margin = Math.max(16, Math.min(48, Math.round(viewportHeight * 0.06)));
-    const availableHeight = Math.max(0, Math.round(viewportHeight - margin));
+    const safeSpacing = Math.max(0, Math.round(viewportHeight * 0.02));
+    const availableHeight = Math.max(0, Math.round(viewportHeight - safeSpacing));
     let targetHeight = totalHeight;
     if (availableHeight && totalHeight > availableHeight) {
       targetHeight = availableHeight;
@@ -802,6 +805,9 @@ function setupResponsiveNavigation() {
     } else {
       setNavState(false);
     }
+
+    updateMobileNavHeight();
+    toggleBodyScroll(false);
   };
 
   if (typeof navMediaQuery.addEventListener === 'function') {
@@ -1324,6 +1330,20 @@ function bindOverlayDragging(overlay) {
   if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
   const visualHandle = overlay.querySelector('[data-drag-handle]');
+  const computeHorizontalPeek = size => {
+    if (!Number.isFinite(size) || size <= 0) return 0;
+    const preferred = Math.round(size * 0.3);
+    const clamped = Math.max(72, Math.min(preferred, 140));
+    const maxVisible = Math.max(size - 24, Math.round(size * 0.65));
+    return Math.max(32, Math.min(clamped, maxVisible));
+  };
+  const computeVerticalPeek = size => {
+    if (!Number.isFinite(size) || size <= 0) return 0;
+    const preferred = Math.round(size * 0.35);
+    const clamped = Math.max(60, Math.min(preferred, 128));
+    const maxVisible = Math.max(size - 28, Math.round(size * 0.7));
+    return Math.max(36, Math.min(clamped, maxVisible));
+  };
 
   try {
     const computedStyle = window.getComputedStyle(overlay);
@@ -1424,9 +1444,9 @@ function bindOverlayDragging(overlay) {
         const liveRect = overlay.getBoundingClientRect();
         const viewportWidth = window.innerWidth || document.documentElement.clientWidth || liveRect.right;
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight || liveRect.bottom;
-        const margin = 12;
-        const horizontalPeek = Math.max(28, Math.min(Math.round(liveRect.width * 0.2), 96));
-        const verticalPeek = Math.max(24, Math.min(Math.round(liveRect.height * 0.25), 80));
+        const margin = 16;
+        const horizontalPeek = computeHorizontalPeek(liveRect.width);
+        const verticalPeek = computeVerticalPeek(liveRect.height);
 
         let nextLeft = parseFloat(overlay.style.left) || liveRect.left;
         let nextTop = parseFloat(overlay.style.top) || liveRect.top;
@@ -1489,9 +1509,9 @@ function bindOverlayDragging(overlay) {
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
-      const margin = 12;
-      const horizontalPeek = Math.max(28, Math.min(Math.round(width * 0.2), 96));
-      const verticalPeek = Math.max(24, Math.min(Math.round(height * 0.25), 80));
+      const margin = 16;
+      const horizontalPeek = computeHorizontalPeek(width);
+      const verticalPeek = computeVerticalPeek(height);
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
