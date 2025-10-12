@@ -6,6 +6,7 @@ let adminRouteFinderState;
 let overlayBodyIdCounter = 0;
 let routeSaveDialogState;
 let accountDropdownState;
+let mobileViewportQuery = null;
 
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
@@ -73,6 +74,34 @@ function safeStorageRemove(key) {
   } catch (error) {
     console.warn('Unable to remove stored data', error);
   }
+}
+
+function isMobileViewport() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  if (!mobileViewportQuery && typeof window.matchMedia === 'function') {
+    mobileViewportQuery = window.matchMedia('(max-width: 899px)');
+  }
+  if (mobileViewportQuery) {
+    return mobileViewportQuery.matches;
+  }
+  const width =
+    window.innerWidth ||
+    (typeof document !== 'undefined' && document.documentElement
+      ? document.documentElement.clientWidth
+      : 0);
+  return width <= 899;
+}
+
+function pageAllowsMobileBodyDrag() {
+  if (typeof document === 'undefined' || !document.body) {
+    return false;
+  }
+  return (
+    document.body.classList.contains('page-route-adder') ||
+    document.body.classList.contains('page-route-finder')
+  );
 }
 
 function notifyAuthChange(session) {
@@ -1375,12 +1404,23 @@ function bindOverlayDragging(overlay) {
   }
 
   const handlePointerDown = event => {
-    if (event.pointerType === 'mouse' && event.button !== 0) {
+    const pointerType = event.pointerType || 'mouse';
+    if (pointerType === 'mouse' && event.button !== 0) {
       return;
     }
 
     if (event.target && event.target.closest('[data-overlay-toggle]')) {
       return;
+    }
+
+    if (isMobileViewport() && !pageAllowsMobileBodyDrag()) {
+      const handleTarget =
+        event.target && typeof event.target.closest === 'function'
+          ? event.target.closest('[data-drag-handle]')
+          : null;
+      if (!handleTarget || !overlay.contains(handleTarget)) {
+        return;
+      }
     }
 
     const scrollableAncestor =
