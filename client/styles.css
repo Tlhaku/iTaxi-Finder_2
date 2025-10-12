@@ -354,10 +354,10 @@ body.nav-open {
   position: fixed;
   top: 0;
   right: 0;
-  bottom: 0;
-  min-height: 100vh;
-  height: 100dvh;
-  max-height: 100dvh;
+  bottom: auto;
+  --mobile-nav-max-height: 100dvh;
+  max-height: min(100dvh, var(--mobile-nav-max-height));
+  height: auto;
   width: min(340px, 82vw);
   display: flex;
   flex-direction: column;
@@ -465,6 +465,15 @@ body.nav-open {
   z-index: 1250;
 }
 
+#topbar[data-nav-mode='desktop'] .mobile-nav {
+  max-height: none;
+  height: auto;
+}
+
+#topbar[data-nav-mode='desktop'] .mobile-nav__backdrop {
+  display: none !important;
+}
+
 #topbar[data-nav-open="true"] .mobile-nav__backdrop {
   opacity: 1;
   visibility: visible;
@@ -535,6 +544,9 @@ body.nav-open {
     backdrop-filter: none;
     box-shadow: none;
     border-radius: 0;
+    height: auto;
+    max-height: none;
+    min-height: 0;
     overflow: visible;
   }
 

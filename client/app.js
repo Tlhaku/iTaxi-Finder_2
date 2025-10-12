@@ -589,6 +589,71 @@ function setupResponsiveNavigation() {
 
   const navMediaQuery = window.matchMedia('(min-width: 900px)');
   let restoreFocusTo = null;
+  const getViewportHeight = () => {
+    if (window.visualViewport && typeof window.visualViewport.height === 'number') {
+      return window.visualViewport.height;
+    }
+    return window.innerHeight || document.documentElement.clientHeight || 0;
+  };
+
+  const updateMobileNavHeight = () => {
+    if (!navContainer) return;
+
+    const isDesktop = navMediaQuery.matches;
+    topbar.dataset.navMode = isDesktop ? 'desktop' : 'overlay';
+
+    if (isDesktop) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    const viewportHeight = getViewportHeight();
+    if (!viewportHeight) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    const computed = window.getComputedStyle(navContainer);
+    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
+    const columnGap =
+      Number.parseFloat(computed.rowGap || computed.columnGap || computed.gap) || 0;
+
+    const header = navContainer.querySelector('.mobile-nav__header');
+    const headerRect = header && header.isConnected ? header.getBoundingClientRect() : null;
+    const headerHeight = headerRect && Number.isFinite(headerRect.height)
+      ? headerRect.height
+      : 0;
+
+    let linksHeight = 0;
+    if (links && links.isConnected) {
+      linksHeight = links.scrollHeight;
+    }
+
+    let totalHeight = paddingTop + paddingBottom + linksHeight;
+    if (headerHeight) {
+      totalHeight += headerHeight;
+    }
+    if (headerHeight && linksHeight) {
+      totalHeight += columnGap;
+    }
+
+    totalHeight = Math.ceil(totalHeight);
+
+    const safeSpacing = Math.max(0, Math.round(viewportHeight * 0.02));
+    const availableHeight = Math.max(0, Math.round(viewportHeight - safeSpacing));
+    let targetHeight = totalHeight;
+    if (availableHeight && totalHeight > availableHeight) {
+      targetHeight = availableHeight;
+    }
+
+    if (!targetHeight || targetHeight <= 0) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    navContainer.style.setProperty('--mobile-nav-max-height', `${targetHeight}px`);
+  };
 
   const focusableSelectors = [
     'a[href]',
@@ -676,6 +741,8 @@ function setupResponsiveNavigation() {
       }
     }
 
+    updateMobileNavHeight();
+
     const mapElement = document.getElementById('map');
     if (mapElement) {
       repositionMapControls(mapElement);
@@ -685,6 +752,29 @@ function setupResponsiveNavigation() {
   };
 
   setNavState(false);
+
+  if (typeof ResizeObserver === 'function') {
+    const resizeObserver = new ResizeObserver(() => updateMobileNavHeight());
+    resizeObserver.observe(navContainer);
+    if (links) {
+      resizeObserver.observe(links);
+    }
+  }
+
+  const handleViewportChange = () => updateMobileNavHeight();
+  window.addEventListener('resize', handleViewportChange);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
+  }
+
+  if (typeof MutationObserver === 'function') {
+    const navMutationObserver = new MutationObserver(updateMobileNavHeight);
+    navMutationObserver.observe(links, { childList: true, subtree: true });
+  }
+
+  updateMobileNavHeight();
 
   const closeNav = () => setNavState(false);
 
@@ -715,6 +805,9 @@ function setupResponsiveNavigation() {
     } else {
       setNavState(false);
     }
+
+    updateMobileNavHeight();
+    toggleBodyScroll(false);
   };
 
   if (typeof navMediaQuery.addEventListener === 'function') {
@@ -1237,6 +1330,20 @@ function bindOverlayDragging(overlay) {
   if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
   const visualHandle = overlay.querySelector('[data-drag-handle]');
+  const computeHorizontalPeek = size => {
+    if (!Number.isFinite(size) || size <= 0) return 0;
+    const preferred = Math.round(size * 0.3);
+    const clamped = Math.max(72, Math.min(preferred, 140));
+    const maxVisible = Math.max(size - 24, Math.round(size * 0.65));
+    return Math.max(32, Math.min(clamped, maxVisible));
+  };
+  const computeVerticalPeek = size => {
+    if (!Number.isFinite(size) || size <= 0) return 0;
+    const preferred = Math.round(size * 0.35);
+    const clamped = Math.max(60, Math.min(preferred, 128));
+    const maxVisible = Math.max(size - 28, Math.round(size * 0.7));
+    return Math.max(36, Math.min(clamped, maxVisible));
+  };
 
   try {
     const computedStyle = window.getComputedStyle(overlay);
@@ -1269,9 +1376,12 @@ function bindOverlayDragging(overlay) {
       return;
     }
 
-    const scrollableAncestor = event.target && event.target.closest('[data-overlay-body]');
+    const scrollableAncestor =
+      event.target && event.target.closest && event.target.closest('[data-overlay-body]');
+    const scrollElement =
+      scrollableAncestor instanceof HTMLElement ? scrollableAncestor : null;
     const canScroll = Boolean(
-      scrollableAncestor && scrollableAncestor.scrollHeight > scrollableAncestor.clientHeight
+      scrollElement && scrollElement.scrollHeight - scrollElement.clientHeight > 2
     );
 
     const pointerId = event.pointerId;
@@ -1334,9 +1444,9 @@ function bindOverlayDragging(overlay) {
         const liveRect = overlay.getBoundingClientRect();
         const viewportWidth = window.innerWidth || document.documentElement.clientWidth || liveRect.right;
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight || liveRect.bottom;
-        const margin = 12;
-        const horizontalPeek = Math.max(28, Math.min(Math.round(liveRect.width * 0.2), 96));
-        const verticalPeek = Math.max(24, Math.min(Math.round(liveRect.height * 0.25), 80));
+        const margin = 16;
+        const horizontalPeek = computeHorizontalPeek(liveRect.width);
+        const verticalPeek = computeVerticalPeek(liveRect.height);
 
         let nextLeft = parseFloat(overlay.style.left) || liveRect.left;
         let nextTop = parseFloat(overlay.style.top) || liveRect.top;
@@ -1378,9 +1488,18 @@ function bindOverlayDragging(overlay) {
           return;
         }
 
-        if (canScroll && Math.abs(deltaY) > Math.abs(deltaX)) {
-          cleanup(false);
-          return;
+        if (canScroll && scrollElement && Math.abs(deltaY) >= Math.abs(deltaX)) {
+          const scrollTop = scrollElement.scrollTop;
+          const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
+          const movingDown = deltaY > 0;
+          const movingUp = deltaY < 0;
+          const canScrollDown = maxScroll - scrollTop > 1;
+          const canScrollUp = scrollTop > 1;
+
+          if ((movingDown && canScrollDown) || (movingUp && canScrollUp)) {
+            cleanup(false);
+            return;
+          }
         }
 
         startDrag(moveEvent);
@@ -1390,9 +1509,9 @@ function bindOverlayDragging(overlay) {
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
-      const margin = 12;
-      const horizontalPeek = Math.max(28, Math.min(Math.round(width * 0.2), 96));
-      const verticalPeek = Math.max(24, Math.min(Math.round(height * 0.25), 80));
+      const margin = 16;
+      const horizontalPeek = computeHorizontalPeek(width);
+      const verticalPeek = computeVerticalPeek(height);
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
