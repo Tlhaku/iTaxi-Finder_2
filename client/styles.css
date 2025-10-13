@@ -1550,8 +1550,9 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
 
 .social-links {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  margin-top: 24px;
+  margin: 18px 0 24px;
 }
 
 .social-links a {
@@ -1582,6 +1583,8 @@ body.map-background .content-panel::-webkit-scrollbar-thumb {
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   border: none;
   cursor: pointer;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .cta:hover,
@@ -2311,7 +2314,7 @@ body.page-route-finder #map::after {
   body.page-registration .content-panel[data-draggable-overlay],
   body.page-about .content-panel[data-draggable-overlay] {
     --overlay-mobile-offset: 20px;
-    --overlay-mobile-bottom-gap: clamp(18px, 6vh, 32px);
+    --overlay-mobile-bottom-gap: clamp(32px, 9vh, 56px);
     top: calc(var(--overlay-panel-top) + var(--overlay-mobile-offset));
     display: flex;
     flex-direction: column;
@@ -2441,7 +2444,7 @@ body.page-route-finder #map::after {
   body.page-registration .content-panel[data-draggable-overlay],
   body.page-about .content-panel[data-draggable-overlay] {
     --overlay-mobile-offset: 22px;
-    --overlay-mobile-bottom-gap: clamp(18px, 6vh, 32px);
+    --overlay-mobile-bottom-gap: clamp(32px, 9vh, 56px);
     top: calc(var(--overlay-panel-top) + var(--overlay-mobile-offset));
     width: min(340px, calc(100% - 20px));
     max-height: min(
