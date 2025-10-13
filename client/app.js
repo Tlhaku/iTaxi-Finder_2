@@ -569,6 +569,10 @@ async function fallbackToIpLocation(map) {
 function getControlOffset() {
   const topbar = document.getElementById('topbar');
   const navHeight = topbar ? topbar.getBoundingClientRect().height : 56;
+  const root = document.documentElement;
+  if (root) {
+    root.style.setProperty('--topbar-height', `${Math.round(navHeight)}px`);
+  }
   let offset = navHeight + 12;
   const banner = document.querySelector('.delivery-banner');
   if (banner && banner.isConnected) {
