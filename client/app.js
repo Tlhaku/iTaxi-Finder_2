@@ -156,6 +156,18 @@ function getLoggedInUser() {
   return session.user;
 }
 
+function getRegisteredContributorDetails() {
+  const user = getLoggedInUser();
+  if (!user) {
+    return normalizeContributor();
+  }
+
+  return normalizeContributor({
+    username: user.username,
+    homeTown: user.homeTown,
+  });
+}
+
 function getAuthHeaders() {
   const session = getAuthSession();
   if (session && session.token) {
@@ -1661,6 +1673,13 @@ function setupSavedRoutesManager() {
     state.list.addEventListener('click', handleSavedRoutesListClick);
   }
 
+  if (!panel.dataset.authListenerBound) {
+    document.addEventListener('authchange', () => {
+      renderSavedRoutesList(state);
+    });
+    panel.dataset.authListenerBound = 'true';
+  }
+
   if (state.deleteSelect && state.deleteSelect.dataset.deleteSelectBound !== 'true') {
     state.deleteSelect.addEventListener('change', handleDeleteSelectChange);
     state.deleteSelect.dataset.deleteSelectBound = 'true';
@@ -1694,11 +1713,14 @@ function setupRouteSaveDialog() {
     inputs: {
       pointA: dialog.querySelector('[data-route-save-point-a]'),
       pointB: dialog.querySelector('[data-route-save-point-b]'),
-      username: dialog.querySelector('[data-route-save-username]'),
-      homeTown: dialog.querySelector('[data-route-save-hometown]'),
       fareMin: dialog.querySelector('[data-route-save-fare-min]'),
       fareMax: dialog.querySelector('[data-route-save-fare-max]'),
     },
+    displays: {
+      username: dialog.querySelector('[data-route-save-username-display]'),
+      homeTown: dialog.querySelector('[data-route-save-hometown-display]'),
+    },
+    contributor: { username: '', homeTown: '' },
     resolver: null,
   };
 
@@ -1706,6 +1728,9 @@ function setupRouteSaveDialog() {
     dialog.hidden = true;
     dialog.setAttribute('aria-hidden', 'true');
     dialog.dataset.active = 'false';
+    if (routeSaveDialogState) {
+      routeSaveDialogState.contributor = { username: '', homeTown: '' };
+    }
   };
 
   const resetFeedback = () => {
@@ -1719,6 +1744,9 @@ function setupRouteSaveDialog() {
     routeSaveDialogState.feedback.textContent = message;
     routeSaveDialogState.feedback.classList.toggle('error', Boolean(isError));
   };
+
+  routeSaveDialogState.resetFeedback = resetFeedback;
+  routeSaveDialogState.showFeedback = showFeedback;
 
   const resolveDialog = result => {
     hideDialog();
@@ -1737,8 +1765,9 @@ function setupRouteSaveDialog() {
       const { inputs } = routeSaveDialogState;
       const pointA = inputs.pointA ? inputs.pointA.value.trim() : '';
       const pointB = inputs.pointB ? inputs.pointB.value.trim() : '';
-      const username = inputs.username ? inputs.username.value.trim() : '';
-      const homeTown = inputs.homeTown ? inputs.homeTown.value.trim() : '';
+      const contributor = routeSaveDialogState.contributor || { username: '', homeTown: '' };
+      const username = typeof contributor.username === 'string' ? contributor.username.trim() : '';
+      const homeTown = typeof contributor.homeTown === 'string' ? contributor.homeTown.trim() : '';
       const fareMinValueRaw = inputs.fareMin ? inputs.fareMin.value.trim() : '';
       const fareMaxValueRaw = inputs.fareMax ? inputs.fareMax.value.trim() : '';
 
@@ -1755,14 +1784,12 @@ function setupRouteSaveDialog() {
       }
 
       if (!username) {
-        showFeedback('Enter your registered custom username.', true);
-        if (inputs.username) inputs.username.focus();
+        showFeedback('Your registration profile is missing a username. Update it before saving routes.', true);
         return;
       }
 
       if (!homeTown) {
-        showFeedback('Enter the home town linked to your registration.', true);
-        if (inputs.homeTown) inputs.homeTown.focus();
+        showFeedback('Your registration profile is missing a home town. Update it before saving routes.', true);
         return;
       }
 
@@ -1810,22 +1837,39 @@ function openRouteSaveDialog(defaults = {}) {
   const normalized = {
     pointAName: typeof defaults.pointAName === 'string' ? defaults.pointAName.trim() : '',
     pointBName: typeof defaults.pointBName === 'string' ? defaults.pointBName.trim() : '',
-    username: typeof defaults.username === 'string' ? defaults.username.trim() : '',
-    homeTown: typeof defaults.homeTown === 'string' ? defaults.homeTown.trim() : '',
     fareMin: Number.isFinite(Number(defaults.fareMin)) ? Number(defaults.fareMin) : '',
     fareMax: Number.isFinite(Number(defaults.fareMax)) ? Number(defaults.fareMax) : '',
   };
 
+  const contributor = normalizeContributor(defaults.contributor || {});
+  state.contributor = contributor;
+
+  if (state.displays && state.displays.username) {
+    state.displays.username.textContent = contributor.username || '—';
+  }
+  if (state.displays && state.displays.homeTown) {
+    state.displays.homeTown.textContent = contributor.homeTown || '—';
+  }
+
   if (state.inputs.pointA) state.inputs.pointA.value = normalized.pointAName;
   if (state.inputs.pointB) state.inputs.pointB.value = normalized.pointBName;
-  if (state.inputs.username) state.inputs.username.value = normalized.username;
-  if (state.inputs.homeTown) state.inputs.homeTown.value = normalized.homeTown;
   if (state.inputs.fareMin) state.inputs.fareMin.value = normalized.fareMin === '' ? '' : normalized.fareMin;
   if (state.inputs.fareMax) state.inputs.fareMax.value = normalized.fareMax === '' ? '' : normalized.fareMax;
 
-  if (state.feedback) {
+  if (typeof state.resetFeedback === 'function') {
+    state.resetFeedback();
+  } else if (state.feedback) {
     state.feedback.textContent = '';
     state.feedback.classList.remove('error');
+  }
+
+  if (!contributor.username || !contributor.homeTown) {
+    if (typeof state.showFeedback === 'function') {
+      state.showFeedback(
+        'Account details incomplete. Update your username and home town before saving routes.',
+        true,
+      );
+    }
   }
 
   if (state.resolver) {
@@ -1838,7 +1882,7 @@ function openRouteSaveDialog(defaults = {}) {
   state.dialog.removeAttribute('aria-hidden');
   state.dialog.dataset.active = 'true';
 
-  const focusTarget = state.inputs.pointA || state.inputs.username;
+  const focusTarget = state.inputs.pointA;
   if (focusTarget && typeof focusTarget.focus === 'function') {
     window.requestAnimationFrame(() => {
       focusTarget.focus({ preventScroll: true });
@@ -1934,6 +1978,7 @@ function renderSavedRoutesList(state) {
 
   const sortedRoutes = sortRoutesForManager(state.routes, state.collator);
   populateRouteDeleteSelect(state, sortedRoutes);
+  const isLoggedIn = Boolean(getLoggedInUser());
 
   sortedRoutes.forEach(route => {
     const item = document.createElement('li');
@@ -1973,6 +2018,26 @@ function renderSavedRoutesList(state) {
     }
 
     item.appendChild(text);
+
+    const actions = document.createElement('div');
+    actions.className = 'route-adder-saved__actions';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'route-adder-saved__action';
+
+    if (isLoggedIn) {
+      editButton.textContent = 'Edit route';
+      editButton.dataset.routeAction = 'edit';
+      editButton.dataset.routeId = String(route.routeId);
+      editButton.setAttribute('aria-label', `Edit ${route.name || 'saved route'}`);
+    } else {
+      editButton.textContent = 'Sign in to edit';
+      editButton.dataset.routeAction = 'signin';
+    }
+
+    actions.appendChild(editButton);
+    item.appendChild(actions);
     list.appendChild(item);
   });
 }
@@ -2023,15 +2088,39 @@ function populateRouteDeleteSelect(state, routes) {
 function handleSavedRoutesListClick(event) {
   const target = event.target instanceof HTMLElement ? event.target.closest('[data-route-action]') : null;
   if (!target) return;
+
   const action = target.dataset.routeAction;
   const routeId = target.dataset.routeId;
-  if (action === 'delete' && routeId) {
-    const savedState = routeEditorState ? routeEditorState.savedRoutes : null;
-    if (!savedState) return;
-    const route = savedState.routes.find(entry => entry.routeId === routeId);
-    if (route) {
-      deleteSavedRouteRecord(route, target, savedState);
+  const savedState = routeEditorState ? routeEditorState.savedRoutes : null;
+
+  if (action === 'signin') {
+    if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+      window.location.href = '/registration.html#login';
     }
+    return;
+  }
+
+  if (!savedState) {
+    return;
+  }
+
+  if (!routeId) {
+    if (action === 'edit') {
+      setEditorStatus(routeEditorState, 'Select a specific route to edit.');
+    }
+    return;
+  }
+
+  const route = savedState.routes.find(entry => String(entry.routeId) === String(routeId));
+  if (!route) return;
+
+  if (action === 'edit') {
+    loadRouteForEditing(route);
+    return;
+  }
+
+  if (action === 'delete') {
+    deleteSavedRouteRecord(route, target, savedState);
   }
 }
 
@@ -2168,6 +2257,8 @@ function setupRouteAdder(map) {
     savedRoutes: null,
     contributor: initialContributor,
     lastSaveDetails: null,
+    editingRouteId: null,
+    editingRouteName: '',
     polyline: new google.maps.Polyline({
       map,
       strokeColor: '#2563eb',
@@ -2292,6 +2383,8 @@ function startDrawingRoute(state) {
   state.mode = 'draw';
   state.path = [];
   state.snappedPath = [];
+  state.editingRouteId = null;
+  state.editingRouteName = '';
   initialiseRouteHistory(state);
   updateDraftPolyline(state);
   updateSnappedPolyline(state);
@@ -2347,6 +2440,8 @@ function deleteCurrentRoute(state) {
   state.mode = 'idle';
   state.path = [];
   state.snappedPath = [];
+  state.editingRouteId = null;
+  state.editingRouteName = '';
   initialiseRouteHistory(state);
   updateDraftPolyline(state);
   updateSnappedPolyline(state);
@@ -2497,6 +2592,109 @@ async function snapRouteToRoad(state) {
   }
 }
 
+function focusEditorMapOnPath(state, path) {
+  if (!state || !state.map || !Array.isArray(path) || path.length === 0) {
+    return;
+  }
+
+  try {
+    const bounds = new google.maps.LatLngBounds();
+    path.forEach(point => {
+      if (!point) return;
+      const lat = Number(point.lat);
+      const lng = Number(point.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        bounds.extend({ lat, lng });
+      }
+    });
+
+    if (!bounds.isEmpty()) {
+      state.map.fitBounds(bounds, getRouteFitPadding());
+    }
+  } catch (error) {
+    console.warn('Unable to focus editor map on saved route', error);
+  }
+}
+
+function loadRouteForEditing(route) {
+  if (!routeEditorState || !route) return;
+
+  const session = getAuthSession();
+  if (!session || !session.user) {
+    setEditorStatus(
+      routeEditorState,
+      'Sign in to edit saved routes. Use the account menu above to log in.',
+    );
+    if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+      window.location.href = '/registration.html#login';
+    }
+    return;
+  }
+
+  const path = cloneCoordinateList(
+    Array.isArray(route.path) && route.path.length ? route.path : route.snappedPath || [],
+  );
+  const snappedPath = cloneCoordinateList(
+    Array.isArray(route.snappedPath) && route.snappedPath.length
+      ? route.snappedPath
+      : path,
+  );
+
+  if (!path.length && !snappedPath.length) {
+    setEditorStatus(
+      routeEditorState,
+      'This saved route does not include enough map data to edit.',
+    );
+    return;
+  }
+
+  const workingPath = path.length ? path : snappedPath;
+
+  routeEditorState.mode = 'edit';
+  routeEditorState.editingRouteId = route.routeId;
+  routeEditorState.editingRouteName = route.name || '';
+  routeEditorState.path = workingPath;
+  routeEditorState.snappedPath = snappedPath.length ? snappedPath : workingPath;
+
+  initialiseRouteHistory(routeEditorState);
+  routeEditorState.history = [cloneCoordinateList(routeEditorState.path)];
+  routeEditorState.redoStack = [];
+
+  const stops = Array.isArray(route.stops) ? route.stops : [];
+  const firstStop = stops[0] || null;
+  const lastStop = stops[stops.length - 1] || null;
+  const fare = route.fare || {};
+
+  routeEditorState.lastSaveDetails = {
+    pointAName: firstStop && typeof firstStop.name === 'string' ? firstStop.name : '',
+    pointBName:
+      lastStop && typeof lastStop.name === 'string' ? lastStop.name : firstStop && firstStop.name ? firstStop.name : '',
+    fareMin: Number.isFinite(Number(fare.min)) ? Number(fare.min) : '',
+    fareMax: Number.isFinite(Number(fare.max)) ? Number(fare.max) : '',
+  };
+
+  const contributor = getRegisteredContributorDetails();
+  if (contributorHasDetails(contributor)) {
+    setRouteContributor(contributor);
+    routeEditorState.contributor = contributor;
+  }
+
+  updateDraftPolyline(routeEditorState);
+  updateSnappedPolyline(routeEditorState);
+
+  focusEditorMapOnPath(routeEditorState, routeEditorState.snappedPath.length ? routeEditorState.snappedPath : routeEditorState.path);
+  if (routeEditorState.map) {
+    repositionMapControls(routeEditorState.map.getDiv());
+  }
+
+  const routeLabel = route.name || 'Saved route';
+  setEditorStatus(
+    routeEditorState,
+    `Editing "${routeLabel}". Adjust the path or choose Save to update the shared directory.`,
+  );
+  updateEditorControls(routeEditorState);
+}
+
 async function saveCurrentRoute(state) {
   const workingPath = state.snappedPath.length > 1 ? state.snappedPath : state.path;
   if (workingPath.length < 2) {
@@ -2504,32 +2702,41 @@ async function saveCurrentRoute(state) {
     return;
   }
 
-  const sessionUser = getLoggedInUser();
-  const stateContributor = normalizeContributor(state.contributor || {});
-  let contributorDefaults = stateContributor;
-
-  if (!contributorHasDetails(contributorDefaults)) {
-    const storedContributor = getRouteContributor();
-    if (contributorHasDetails(storedContributor)) {
-      contributorDefaults = normalizeContributor(storedContributor);
-    } else if (sessionUser) {
-      contributorDefaults = normalizeContributor({
-        username: sessionUser.username,
-        homeTown: sessionUser.homeTown,
-      });
-    } else {
-      contributorDefaults = normalizeContributor();
+  const session = getAuthSession();
+  const sessionUser = session && session.user ? session.user : null;
+  if (!sessionUser) {
+    setEditorStatus(state, 'Sign in to save taxi routes. Use the account menu above to log in.');
+    if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+      window.location.href = '/registration.html#login';
     }
+    return;
   }
+
+  const contributorDefaults = getRegisteredContributorDetails();
+  const hasContributorUsername = Boolean(contributorDefaults.username);
+  const hasContributorHomeTown = Boolean(contributorDefaults.homeTown);
+
+  if (!hasContributorUsername || !hasContributorHomeTown) {
+    setEditorStatus(
+      state,
+      'Complete your registration profile with a username and home town before saving routes.',
+    );
+    if (!openAccountMenu({ focus: 'profile', redirect: false })) {
+      window.location.href = '/registration.html#account';
+    }
+    return;
+  }
+
+  setRouteContributor(contributorDefaults);
+  state.contributor = { ...contributorDefaults };
 
   const previousDetails = state.lastSaveDetails || {};
   const dialogDefaults = {
     pointAName: previousDetails.pointAName || '',
     pointBName: previousDetails.pointBName || '',
-    username: contributorDefaults.username,
-    homeTown: contributorDefaults.homeTown,
     fareMin: previousDetails.fareMin,
     fareMax: previousDetails.fareMax,
+    contributor: contributorDefaults,
   };
 
   const details = await openRouteSaveDialog(dialogDefaults);
@@ -2538,18 +2745,28 @@ async function saveCurrentRoute(state) {
     return;
   }
 
-  setRouteContributor({ username: details.username, homeTown: details.homeTown });
   state.contributor = { username: details.username, homeTown: details.homeTown };
-  state.lastSaveDetails = { ...details };
+  state.lastSaveDetails = {
+    pointAName: details.pointAName,
+    pointBName: details.pointBName,
+    fareMin: details.fareMin,
+    fareMax: details.fareMax,
+  };
 
   const routeNameParts = [details.pointAName, details.pointBName].filter(part => part && part.trim());
   const generatedName = routeNameParts.length ? routeNameParts.join(' – ') : 'New Taxi Route';
+
+  const contributorNameParts = [
+    typeof sessionUser.firstName === 'string' ? sessionUser.firstName.trim() : '',
+    typeof sessionUser.lastName === 'string' ? sessionUser.lastName.trim() : '',
+  ].filter(Boolean);
+  const contributorDisplayName = contributorNameParts.join(' ').trim();
 
   const payload = {
     name: generatedName,
     gesture: '',
     province: '',
-    city: details.homeTown,
+    city: '',
     fare: {
       min: Number.isFinite(details.fareMin) ? details.fareMin : 0,
       max: Number.isFinite(details.fareMax) ? details.fareMax : Number.isFinite(details.fareMin) ? details.fareMin : 0,
@@ -2563,18 +2780,24 @@ async function saveCurrentRoute(state) {
     snappedPath: cloneCoordinateList(state.snappedPath.length ? state.snappedPath : state.path),
     variations: [],
     addedBy: {
-      name: details.username,
+      name: contributorDisplayName || details.username,
       username: details.username,
       homeTown: details.homeTown,
     },
   };
 
+  const isEditingExisting = Boolean(state.editingRouteId);
+  const endpoint = isEditingExisting
+    ? `/api/routes/${encodeURIComponent(state.editingRouteId)}`
+    : '/api/routes';
+  const method = isEditingExisting ? 'PUT' : 'POST';
+
   setEditorBusy(state, true);
-  setEditorStatus(state, 'Saving route...');
+  setEditorStatus(state, isEditingExisting ? 'Updating route...' : 'Saving route...');
 
   try {
-    const response = await fetch('/api/routes', {
-      method: 'POST',
+    const response = await fetch(endpoint, {
+      method,
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(payload),
     });
@@ -2582,15 +2805,20 @@ async function saveCurrentRoute(state) {
       const errorData = await response.json().catch(() => ({}));
       const message = errorData && errorData.message
         ? errorData.message
-        : 'Unable to save the route right now. Please try again.';
+        : isEditingExisting
+          ? 'Unable to update the route right now. Please try again.'
+          : 'Unable to save the route right now. Please try again.';
       setEditorStatus(state, message);
       return;
     }
     const saved = await response.json();
-    setEditorStatus(state, `Route "${saved.name || generatedName}" saved successfully.`);
+    const actionVerb = isEditingExisting ? 'updated' : 'saved';
+    setEditorStatus(state, `Route "${saved.name || generatedName}" ${actionVerb} successfully.`);
     state.mode = 'idle';
     state.path = [];
     state.snappedPath = [];
+    state.editingRouteId = null;
+    state.editingRouteName = '';
     initialiseRouteHistory(state);
     updateDraftPolyline(state);
     updateSnappedPolyline(state);
@@ -2598,9 +2826,17 @@ async function saveCurrentRoute(state) {
     if (routeEditorState && routeEditorState.savedRoutes) {
       loadSavedRoutesForEditor(routeEditorState.savedRoutes, { silent: true, force: true });
     }
+    if (typeof loadRoutesForFinder === 'function') {
+      loadRoutesForFinder();
+    }
   } catch (error) {
     console.error('Unable to save route', error);
-    setEditorStatus(state, 'Unable to save the route right now. Please try again.');
+    setEditorStatus(
+      state,
+      isEditingExisting
+        ? 'Unable to update the route right now. Please try again.'
+        : 'Unable to save the route right now. Please try again.',
+    );
   } finally {
     setEditorBusy(state, false);
   }

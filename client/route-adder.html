@@ -136,27 +136,19 @@
             data-route-save-point-b
           />
         </li>
-        <li>
-          <label for="route-save-username">Custom username</label>
-          <input
-            id="route-save-username"
-            type="text"
-            name="username"
-            autocomplete="username"
-            required
-            data-route-save-username
-          />
-        </li>
-        <li>
-          <label for="route-save-hometown">Home town</label>
-          <input
-            id="route-save-hometown"
-            type="text"
-            name="homeTown"
-            autocomplete="address-level2"
-            required
-            data-route-save-hometown
-          />
+        <li class="route-save-dialog__contributor" data-route-save-contributor>
+          <span class="route-save-dialog__contributor-heading">Registered contributor</span>
+          <p class="route-save-dialog__contributor-line">
+            <strong>Username:</strong>
+            <span data-route-save-username-display>—</span>
+          </p>
+          <p class="route-save-dialog__contributor-line">
+            <strong>Home town:</strong>
+            <span data-route-save-hometown-display>—</span>
+          </p>
+          <p class="route-save-dialog__contributor-hint">
+            Update your account profile to change these details.
+          </p>
         </li>
         <li>
           <label for="route-save-minfare">Minimum fare price (ZAR)</label>
