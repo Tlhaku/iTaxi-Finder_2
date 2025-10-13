@@ -2310,11 +2310,16 @@ body.page-route-finder #map::after {
   body.page-community .content-panel[data-draggable-overlay],
   body.page-registration .content-panel[data-draggable-overlay],
   body.page-about .content-panel[data-draggable-overlay] {
-    top: calc(var(--overlay-panel-top) + 20px);
+    --overlay-mobile-offset: 20px;
+    --overlay-mobile-bottom-gap: clamp(18px, 6vh, 32px);
+    top: calc(var(--overlay-panel-top) + var(--overlay-mobile-offset));
     display: flex;
     flex-direction: column;
     width: min(360px, calc(100% - 24px));
-    max-height: min(82vh, calc(var(--overlay-panel-max-height) - 16px));
+    max-height: min(
+      82vh,
+      calc(100vh - var(--overlay-panel-top) - var(--overlay-mobile-offset) - var(--overlay-mobile-bottom-gap))
+    );
     padding: 26px 24px 30px;
     touch-action: pan-y;
     overflow: hidden;
@@ -2435,9 +2440,14 @@ body.page-route-finder #map::after {
   body.page-community .content-panel[data-draggable-overlay],
   body.page-registration .content-panel[data-draggable-overlay],
   body.page-about .content-panel[data-draggable-overlay] {
-    top: calc(var(--overlay-panel-top) + 22px);
+    --overlay-mobile-offset: 22px;
+    --overlay-mobile-bottom-gap: clamp(18px, 6vh, 32px);
+    top: calc(var(--overlay-panel-top) + var(--overlay-mobile-offset));
     width: min(340px, calc(100% - 20px));
-    max-height: min(84vh, calc(var(--overlay-panel-max-height) - 20px));
+    max-height: min(
+      84vh,
+      calc(100vh - var(--overlay-panel-top) - var(--overlay-mobile-offset) - var(--overlay-mobile-bottom-gap))
+    );
     padding: 24px 20px 28px;
   }
 
