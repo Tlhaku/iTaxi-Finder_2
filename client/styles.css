@@ -1173,11 +1173,15 @@ body.nav-open {
 }
 
 .overlay-body {
-  display: contents;
+  display: block;
+  width: 100%;
+  min-height: 0;
 }
 
 [data-overlay-body] {
   touch-action: pan-y;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .overlay-toggle {
