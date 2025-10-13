@@ -924,6 +924,48 @@ body.nav-open {
   flex: 1 1 auto;
 }
 
+.route-adder-saved__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.route-adder-saved__action {
+  appearance: none;
+  border: 1px solid rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  text-align: center;
+}
+
+.route-adder-saved__action:hover,
+.route-adder-saved__action:focus {
+  outline: none;
+  background: rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.6);
+  color: #1e3a8a;
+}
+
+.route-adder-saved__action:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.route-adder-saved__action[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: rgba(71, 85, 105, 0.9);
+}
+
 .route-adder-saved__item-name {
   display: block;
   font-weight: 600;
@@ -941,12 +983,6 @@ body.nav-open {
   font-size: 0.8rem;
   color: rgba(37, 99, 235, 0.75);
   margin-top: 4px;
-}
-
-.route-adder-saved__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .route-adder-saved__empty {
@@ -978,6 +1014,10 @@ body.nav-open {
   z-index: 1200;
 }
 
+.route-save-dialog[hidden] {
+  display: none !important;
+}
+
 .route-save-dialog__form {
   display: grid;
   gap: 16px;
@@ -1005,6 +1045,38 @@ body.nav-open {
 .route-save-dialog__list label {
   font-weight: 600;
   color: rgba(15, 23, 42, 0.85);
+}
+
+.route-save-dialog__contributor {
+  list-style: none;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 4px;
+}
+
+.route-save-dialog__contributor-heading {
+  font-weight: 600;
+  color: #1d4ed8;
+  margin-bottom: 6px;
+}
+
+.route-save-dialog__contributor-line {
+  margin: 2px 0;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.8);
+}
+
+.route-save-dialog__contributor-line strong {
+  font-weight: 600;
+  color: rgba(30, 64, 175, 0.95);
+}
+
+.route-save-dialog__contributor-hint {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: rgba(71, 85, 105, 0.85);
 }
 
 .route-save-dialog__list input {
