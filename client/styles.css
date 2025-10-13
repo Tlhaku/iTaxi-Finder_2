@@ -724,6 +724,7 @@ body.nav-open {
   padding-top: 18px;
   font-size: 0.95rem;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .route-details h2 {
@@ -1106,7 +1107,10 @@ body.nav-open {
   backdrop-filter: blur(6px);
   box-sizing: border-box;
   pointer-events: auto;
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--overlay-panel-max-height);
+  overflow: hidden;
   touch-action: none;
   cursor: grab;
 }
@@ -1182,6 +1186,14 @@ body.nav-open {
   touch-action: pan-y;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.overlay-panel > [data-drag-handle],
+.overlay-panel > [data-overlay-summary],
+.overlay-panel > [data-overlay-toggle] {
+  flex-shrink: 0;
 }
 
 .overlay-toggle {
