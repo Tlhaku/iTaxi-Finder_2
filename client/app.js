@@ -904,6 +904,23 @@ function setAccountMenuOpen(state, open) {
   if (state.container) {
     state.container.classList.toggle('topbar__account--open', isOpen);
   }
+
+  if (typeof window !== 'undefined') {
+    const realignOverlays = () => {
+      const mapElement = document.getElementById('map');
+      if (mapElement) {
+        repositionMapControls(mapElement);
+      } else {
+        applyLayoutOffsets(getControlOffset());
+      }
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(realignOverlays);
+    } else {
+      setTimeout(realignOverlays, 0);
+    }
+  }
 }
 
 function closeAccountMenu() {
