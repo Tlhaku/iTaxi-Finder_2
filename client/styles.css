@@ -252,7 +252,7 @@ body.map-background {
     margin-left: calc(-1 * var(--topbar-padding-inline));
     margin-right: calc(-1 * var(--topbar-padding-inline));
     padding: 8px calc(var(--topbar-padding-inline) + var(--safe-area-right))
-      calc(14px + var(--safe-area-bottom))
+      calc(7px + var(--safe-area-bottom))
       calc(var(--topbar-padding-inline) + var(--safe-area-left));
     box-sizing: border-box;
     justify-content: flex-start;

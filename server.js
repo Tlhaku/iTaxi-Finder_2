@@ -1077,7 +1077,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const relativePath = pathname === '/' ? 'index.html' : pathname;
+  const relativePath = pathname === '/' ? 'route-finder.html' : pathname;
   const filePath = path.join('client', relativePath);
   if (!filePath.startsWith('client')) {
     res.writeHead(403);
