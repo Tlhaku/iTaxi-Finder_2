@@ -6,6 +6,7 @@ let adminRouteFinderState;
 let overlayBodyIdCounter = 0;
 let routeSaveDialogState;
 let accountDropdownState;
+let mobileViewportQuery = null;
 
 const STORAGE_KEYS = {
   driverProfile: 'itaxiFinderDriverProfile',
@@ -75,6 +76,46 @@ function safeStorageRemove(key) {
   }
 }
 
+function isMobileViewport() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  if (!mobileViewportQuery && typeof window.matchMedia === 'function') {
+    mobileViewportQuery = window.matchMedia('(max-width: 899px)');
+  }
+  if (mobileViewportQuery) {
+    return mobileViewportQuery.matches;
+  }
+  const width =
+    window.innerWidth ||
+    (typeof document !== 'undefined' && document.documentElement
+      ? document.documentElement.clientWidth
+      : 0);
+  return width <= 899;
+}
+
+function pageAllowsMobileBodyDrag() {
+  if (typeof document === 'undefined' || !document.body) {
+    return false;
+  }
+  const { classList } = document.body;
+
+  const handleOnlyClasses = [
+    'page-home',
+    'page-delivery',
+    'page-community',
+    'page-registration',
+    'page-about',
+  ];
+
+  if (handleOnlyClasses.some(className => classList.contains(className))) {
+    return false;
+  }
+
+  const allowedClasses = ['page-route-adder', 'page-route-finder'];
+  return allowedClasses.some(className => classList.contains(className));
+}
+
 function notifyAuthChange(session) {
   if (typeof document === 'undefined') return;
   const detail = { session: session || null };
@@ -113,6 +154,18 @@ function getLoggedInUser() {
   const session = getAuthSession();
   if (!session || !session.user) return null;
   return session.user;
+}
+
+function getRegisteredContributorDetails() {
+  const user = getLoggedInUser();
+  if (!user) {
+    return normalizeContributor();
+  }
+
+  return normalizeContributor({
+    username: user.username,
+    homeTown: user.homeTown,
+  });
 }
 
 function getAuthHeaders() {
@@ -516,6 +569,10 @@ async function fallbackToIpLocation(map) {
 function getControlOffset() {
   const topbar = document.getElementById('topbar');
   const navHeight = topbar ? topbar.getBoundingClientRect().height : 56;
+  const root = document.documentElement;
+  if (root) {
+    root.style.setProperty('--topbar-height', `${Math.round(navHeight)}px`);
+  }
   let offset = navHeight + 12;
   const banner = document.querySelector('.delivery-banner');
   if (banner && banner.isConnected) {
@@ -589,6 +646,78 @@ function setupResponsiveNavigation() {
 
   const navMediaQuery = window.matchMedia('(min-width: 900px)');
   let restoreFocusTo = null;
+  const getViewportHeight = () => {
+    if (window.visualViewport && typeof window.visualViewport.height === 'number') {
+      return window.visualViewport.height;
+    }
+    return window.innerHeight || document.documentElement.clientHeight || 0;
+  };
+
+  const updateMobileNavHeight = () => {
+    if (!navContainer) return;
+
+    const isDesktop = navMediaQuery.matches;
+    topbar.dataset.navMode = isDesktop ? 'desktop' : 'overlay';
+
+    if (isDesktop) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      navContainer.style.removeProperty('--mobile-nav-height');
+      navContainer.classList.remove('mobile-nav--scrollable');
+      return;
+    }
+
+    const viewportHeight = getViewportHeight();
+    if (!viewportHeight) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      return;
+    }
+
+    const computed = window.getComputedStyle(navContainer);
+    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
+    const columnGap =
+      Number.parseFloat(computed.rowGap || computed.columnGap || computed.gap) || 0;
+
+    const header = navContainer.querySelector('.mobile-nav__header');
+    const headerRect = header && header.isConnected ? header.getBoundingClientRect() : null;
+    const headerHeight = headerRect && Number.isFinite(headerRect.height)
+      ? headerRect.height
+      : 0;
+
+    let linksHeight = 0;
+    if (links && links.isConnected) {
+      linksHeight = links.scrollHeight;
+    }
+
+    let totalHeight = paddingTop + paddingBottom + linksHeight;
+    if (headerHeight) {
+      totalHeight += headerHeight;
+    }
+    if (headerHeight && linksHeight) {
+      totalHeight += columnGap;
+    }
+
+    totalHeight = Math.ceil(totalHeight);
+
+    const safeSpacing = Math.max(12, Math.round(viewportHeight * 0.015));
+    const availableHeight = Math.max(0, Math.round(viewportHeight - safeSpacing));
+    let targetHeight = totalHeight;
+    if (availableHeight && totalHeight > availableHeight) {
+      targetHeight = availableHeight;
+    }
+
+    if (!targetHeight || targetHeight <= 0) {
+      navContainer.style.removeProperty('--mobile-nav-max-height');
+      navContainer.style.removeProperty('--mobile-nav-height');
+      navContainer.classList.remove('mobile-nav--scrollable');
+      return;
+    }
+
+    navContainer.style.setProperty('--mobile-nav-max-height', `${targetHeight}px`);
+    navContainer.style.setProperty('--mobile-nav-height', `${targetHeight}px`);
+    const needsScroll = totalHeight - targetHeight > 1;
+    navContainer.classList.toggle('mobile-nav--scrollable', needsScroll);
+  };
 
   const focusableSelectors = [
     'a[href]',
@@ -676,6 +805,8 @@ function setupResponsiveNavigation() {
       }
     }
 
+    updateMobileNavHeight();
+
     const mapElement = document.getElementById('map');
     if (mapElement) {
       repositionMapControls(mapElement);
@@ -685,6 +816,29 @@ function setupResponsiveNavigation() {
   };
 
   setNavState(false);
+
+  if (typeof ResizeObserver === 'function') {
+    const resizeObserver = new ResizeObserver(() => updateMobileNavHeight());
+    resizeObserver.observe(navContainer);
+    if (links) {
+      resizeObserver.observe(links);
+    }
+  }
+
+  const handleViewportChange = () => updateMobileNavHeight();
+  window.addEventListener('resize', handleViewportChange);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
+  }
+
+  if (typeof MutationObserver === 'function') {
+    const navMutationObserver = new MutationObserver(updateMobileNavHeight);
+    navMutationObserver.observe(links, { childList: true, subtree: true });
+  }
+
+  updateMobileNavHeight();
 
   const closeNav = () => setNavState(false);
 
@@ -715,6 +869,9 @@ function setupResponsiveNavigation() {
     } else {
       setNavState(false);
     }
+
+    updateMobileNavHeight();
+    toggleBodyScroll(false);
   };
 
   if (typeof navMediaQuery.addEventListener === 'function') {
@@ -762,6 +919,23 @@ function setAccountMenuOpen(state, open) {
   }
   if (state.container) {
     state.container.classList.toggle('topbar__account--open', isOpen);
+  }
+
+  if (typeof window !== 'undefined') {
+    const realignOverlays = () => {
+      const mapElement = document.getElementById('map');
+      if (mapElement) {
+        repositionMapControls(mapElement);
+      } else {
+        applyLayoutOffsets(getControlOffset());
+      }
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(realignOverlays);
+    } else {
+      setTimeout(realignOverlays, 0);
+    }
   }
 }
 
@@ -1237,6 +1411,20 @@ function bindOverlayDragging(overlay) {
   if (!overlay || overlay.dataset.draggableBound === 'true') return;
 
   const visualHandle = overlay.querySelector('[data-drag-handle]');
+  const computeHorizontalPeek = size => {
+    if (!Number.isFinite(size) || size <= 0) return 0;
+    const preferred = Math.round(size * 0.32);
+    const base = Math.max(108, Math.min(preferred, 184));
+    const maxVisible = Math.max(size - 24, Math.round(size * 0.75));
+    return Math.min(Math.max(base, 96), maxVisible);
+  };
+  const computeVerticalPeek = size => {
+    if (!Number.isFinite(size) || size <= 0) return 0;
+    const preferred = Math.round(size * 0.38);
+    const base = Math.max(88, Math.min(preferred, 152));
+    const maxVisible = Math.max(size - 28, Math.round(size * 0.78));
+    return Math.min(Math.max(base, 72), maxVisible);
+  };
 
   try {
     const computedStyle = window.getComputedStyle(overlay);
@@ -1261,7 +1449,8 @@ function bindOverlayDragging(overlay) {
   }
 
   const handlePointerDown = event => {
-    if (event.pointerType === 'mouse' && event.button !== 0) {
+    const pointerType = event.pointerType || 'mouse';
+    if (pointerType === 'mouse' && event.button !== 0) {
       return;
     }
 
@@ -1269,9 +1458,22 @@ function bindOverlayDragging(overlay) {
       return;
     }
 
-    const scrollableAncestor = event.target && event.target.closest('[data-overlay-body]');
+    if (isMobileViewport() && !pageAllowsMobileBodyDrag()) {
+      const handleTarget =
+        event.target && typeof event.target.closest === 'function'
+          ? event.target.closest('[data-drag-handle]')
+          : null;
+      if (!handleTarget || !overlay.contains(handleTarget)) {
+        return;
+      }
+    }
+
+    const scrollableAncestor =
+      event.target && event.target.closest && event.target.closest('[data-overlay-body]');
+    const scrollElement =
+      scrollableAncestor instanceof HTMLElement ? scrollableAncestor : null;
     const canScroll = Boolean(
-      scrollableAncestor && scrollableAncestor.scrollHeight > scrollableAncestor.clientHeight
+      scrollElement && scrollElement.scrollHeight - scrollElement.clientHeight > 2
     );
 
     const pointerId = event.pointerId;
@@ -1306,6 +1508,12 @@ function bindOverlayDragging(overlay) {
       if (initialEvent && typeof initialEvent.preventDefault === 'function') {
         initialEvent.preventDefault();
       }
+
+      try {
+        overlay.setPointerCapture(pointerId);
+      } catch (captureError) {
+        // Pointer capture may fail on unsupported browsers; ignore.
+      }
     };
 
     const cleanup = shouldReposition => {
@@ -1313,7 +1521,46 @@ function bindOverlayDragging(overlay) {
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
 
+      try {
+        if (
+          typeof overlay.hasPointerCapture === 'function' &&
+          overlay.hasPointerCapture(pointerId)
+        ) {
+          overlay.releasePointerCapture(pointerId);
+        }
+      } catch (releaseError) {
+        // Non-blocking.
+      }
+
+      const snapToEdges = () => {
+        const liveRect = overlay.getBoundingClientRect();
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || liveRect.right;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || liveRect.bottom;
+        const margin = 20;
+        const horizontalPeek = computeHorizontalPeek(liveRect.width);
+        const verticalPeek = computeVerticalPeek(liveRect.height);
+
+        let nextLeft = parseFloat(overlay.style.left) || liveRect.left;
+        let nextTop = parseFloat(overlay.style.top) || liveRect.top;
+
+        if (nextLeft <= margin) {
+          nextLeft = Math.min(margin, horizontalPeek - liveRect.width);
+        } else if (nextLeft + liveRect.width >= viewportWidth - margin) {
+          nextLeft = Math.max(viewportWidth - horizontalPeek, viewportWidth - liveRect.width - margin);
+        }
+
+        if (nextTop <= margin) {
+          nextTop = Math.min(margin, verticalPeek - liveRect.height);
+        } else if (nextTop + liveRect.height >= viewportHeight - margin) {
+          nextTop = Math.max(viewportHeight - verticalPeek, viewportHeight - liveRect.height - margin);
+        }
+
+        overlay.style.left = `${Math.round(nextLeft)}px`;
+        overlay.style.top = `${Math.round(nextTop)}px`;
+      };
+
       if (shouldReposition) {
+        snapToEdges();
         const mapElement = document.getElementById('map');
         if (mapElement) {
           repositionMapControls(mapElement);
@@ -1333,9 +1580,18 @@ function bindOverlayDragging(overlay) {
           return;
         }
 
-        if (canScroll && Math.abs(deltaY) > Math.abs(deltaX)) {
-          cleanup(false);
-          return;
+        if (canScroll && scrollElement && Math.abs(deltaY) >= Math.abs(deltaX)) {
+          const scrollTop = scrollElement.scrollTop;
+          const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
+          const movingDown = deltaY > 0;
+          const movingUp = deltaY < 0;
+          const canScrollDown = maxScroll - scrollTop > 1;
+          const canScrollUp = scrollTop > 1;
+
+          if ((movingDown && canScrollDown) || (movingUp && canScrollUp)) {
+            cleanup(false);
+            return;
+          }
         }
 
         startDrag(moveEvent);
@@ -1345,16 +1601,17 @@ function bindOverlayDragging(overlay) {
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
-      const margin = 12;
-      const edgeReveal = 4;
+      const margin = 20;
+      const horizontalPeek = computeHorizontalPeek(width);
+      const verticalPeek = computeVerticalPeek(height);
 
       let nextLeft = startLeft + deltaX;
       let nextTop = startTop + deltaY;
 
-      const minLeft = Math.min(margin, edgeReveal - width);
-      const minTop = Math.min(margin, edgeReveal - height);
-      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - edgeReveal);
-      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - edgeReveal);
+      const minLeft = Math.min(margin, horizontalPeek - width);
+      const minTop = Math.min(margin, verticalPeek - height);
+      const maxLeft = Math.max(viewportWidth - width - margin, viewportWidth - horizontalPeek);
+      const maxTop = Math.max(viewportHeight - height - margin, viewportHeight - verticalPeek);
 
       nextLeft = Math.min(Math.max(nextLeft, minLeft), maxLeft);
       nextTop = Math.min(Math.max(nextTop, minTop), maxTop);
@@ -1420,6 +1677,13 @@ function setupSavedRoutesManager() {
     state.list.addEventListener('click', handleSavedRoutesListClick);
   }
 
+  if (!panel.dataset.authListenerBound) {
+    document.addEventListener('authchange', () => {
+      renderSavedRoutesList(state);
+    });
+    panel.dataset.authListenerBound = 'true';
+  }
+
   if (state.deleteSelect && state.deleteSelect.dataset.deleteSelectBound !== 'true') {
     state.deleteSelect.addEventListener('change', handleDeleteSelectChange);
     state.deleteSelect.dataset.deleteSelectBound = 'true';
@@ -1453,11 +1717,15 @@ function setupRouteSaveDialog() {
     inputs: {
       pointA: dialog.querySelector('[data-route-save-point-a]'),
       pointB: dialog.querySelector('[data-route-save-point-b]'),
-      username: dialog.querySelector('[data-route-save-username]'),
-      homeTown: dialog.querySelector('[data-route-save-hometown]'),
+      notes: dialog.querySelector('[data-route-save-notes]'),
       fareMin: dialog.querySelector('[data-route-save-fare-min]'),
       fareMax: dialog.querySelector('[data-route-save-fare-max]'),
     },
+    displays: {
+      username: dialog.querySelector('[data-route-save-username-display]'),
+      homeTown: dialog.querySelector('[data-route-save-hometown-display]'),
+    },
+    contributor: { username: '', homeTown: '' },
     resolver: null,
   };
 
@@ -1465,6 +1733,9 @@ function setupRouteSaveDialog() {
     dialog.hidden = true;
     dialog.setAttribute('aria-hidden', 'true');
     dialog.dataset.active = 'false';
+    if (routeSaveDialogState) {
+      routeSaveDialogState.contributor = { username: '', homeTown: '' };
+    }
   };
 
   const resetFeedback = () => {
@@ -1478,6 +1749,9 @@ function setupRouteSaveDialog() {
     routeSaveDialogState.feedback.textContent = message;
     routeSaveDialogState.feedback.classList.toggle('error', Boolean(isError));
   };
+
+  routeSaveDialogState.resetFeedback = resetFeedback;
+  routeSaveDialogState.showFeedback = showFeedback;
 
   const resolveDialog = result => {
     hideDialog();
@@ -1496,8 +1770,10 @@ function setupRouteSaveDialog() {
       const { inputs } = routeSaveDialogState;
       const pointA = inputs.pointA ? inputs.pointA.value.trim() : '';
       const pointB = inputs.pointB ? inputs.pointB.value.trim() : '';
-      const username = inputs.username ? inputs.username.value.trim() : '';
-      const homeTown = inputs.homeTown ? inputs.homeTown.value.trim() : '';
+      const notes = inputs.notes ? inputs.notes.value.trim() : '';
+      const contributor = routeSaveDialogState.contributor || { username: '', homeTown: '' };
+      const username = typeof contributor.username === 'string' ? contributor.username.trim() : '';
+      const homeTown = typeof contributor.homeTown === 'string' ? contributor.homeTown.trim() : '';
       const fareMinValueRaw = inputs.fareMin ? inputs.fareMin.value.trim() : '';
       const fareMaxValueRaw = inputs.fareMax ? inputs.fareMax.value.trim() : '';
 
@@ -1514,14 +1790,12 @@ function setupRouteSaveDialog() {
       }
 
       if (!username) {
-        showFeedback('Enter your registered custom username.', true);
-        if (inputs.username) inputs.username.focus();
+        showFeedback('Your registration profile is missing a username. Update it before saving routes.', true);
         return;
       }
 
       if (!homeTown) {
-        showFeedback('Enter the home town linked to your registration.', true);
-        if (inputs.homeTown) inputs.homeTown.focus();
+        showFeedback('Your registration profile is missing a home town. Update it before saving routes.', true);
         return;
       }
 
@@ -1544,6 +1818,7 @@ function setupRouteSaveDialog() {
         pointBName: pointB,
         username,
         homeTown,
+        notes,
         fareMin: fareMinValue,
         fareMax: fareMaxValue,
       });
@@ -1569,22 +1844,41 @@ function openRouteSaveDialog(defaults = {}) {
   const normalized = {
     pointAName: typeof defaults.pointAName === 'string' ? defaults.pointAName.trim() : '',
     pointBName: typeof defaults.pointBName === 'string' ? defaults.pointBName.trim() : '',
-    username: typeof defaults.username === 'string' ? defaults.username.trim() : '',
-    homeTown: typeof defaults.homeTown === 'string' ? defaults.homeTown.trim() : '',
+    notes: typeof defaults.notes === 'string' ? defaults.notes.trim() : '',
     fareMin: Number.isFinite(Number(defaults.fareMin)) ? Number(defaults.fareMin) : '',
     fareMax: Number.isFinite(Number(defaults.fareMax)) ? Number(defaults.fareMax) : '',
   };
 
+  const contributor = normalizeContributor(defaults.contributor || {});
+  state.contributor = contributor;
+
+  if (state.displays && state.displays.username) {
+    state.displays.username.textContent = contributor.username || '—';
+  }
+  if (state.displays && state.displays.homeTown) {
+    state.displays.homeTown.textContent = contributor.homeTown || '—';
+  }
+
   if (state.inputs.pointA) state.inputs.pointA.value = normalized.pointAName;
   if (state.inputs.pointB) state.inputs.pointB.value = normalized.pointBName;
-  if (state.inputs.username) state.inputs.username.value = normalized.username;
-  if (state.inputs.homeTown) state.inputs.homeTown.value = normalized.homeTown;
+  if (state.inputs.notes) state.inputs.notes.value = normalized.notes;
   if (state.inputs.fareMin) state.inputs.fareMin.value = normalized.fareMin === '' ? '' : normalized.fareMin;
   if (state.inputs.fareMax) state.inputs.fareMax.value = normalized.fareMax === '' ? '' : normalized.fareMax;
 
-  if (state.feedback) {
+  if (typeof state.resetFeedback === 'function') {
+    state.resetFeedback();
+  } else if (state.feedback) {
     state.feedback.textContent = '';
     state.feedback.classList.remove('error');
+  }
+
+  if (!contributor.username || !contributor.homeTown) {
+    if (typeof state.showFeedback === 'function') {
+      state.showFeedback(
+        'Account details incomplete. Update your username and home town before saving routes.',
+        true,
+      );
+    }
   }
 
   if (state.resolver) {
@@ -1597,7 +1891,7 @@ function openRouteSaveDialog(defaults = {}) {
   state.dialog.removeAttribute('aria-hidden');
   state.dialog.dataset.active = 'true';
 
-  const focusTarget = state.inputs.pointA || state.inputs.username;
+  const focusTarget = state.inputs.pointA;
   if (focusTarget && typeof focusTarget.focus === 'function') {
     window.requestAnimationFrame(() => {
       focusTarget.focus({ preventScroll: true });
@@ -1693,6 +1987,7 @@ function renderSavedRoutesList(state) {
 
   const sortedRoutes = sortRoutesForManager(state.routes, state.collator);
   populateRouteDeleteSelect(state, sortedRoutes);
+  const isLoggedIn = Boolean(getLoggedInUser());
 
   sortedRoutes.forEach(route => {
     const item = document.createElement('li');
@@ -1732,6 +2027,26 @@ function renderSavedRoutesList(state) {
     }
 
     item.appendChild(text);
+
+    const actions = document.createElement('div');
+    actions.className = 'route-adder-saved__actions';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'route-adder-saved__action';
+
+    if (isLoggedIn) {
+      editButton.textContent = 'Edit route';
+      editButton.dataset.routeAction = 'edit';
+      editButton.dataset.routeId = String(route.routeId);
+      editButton.setAttribute('aria-label', `Edit ${route.name || 'saved route'}`);
+    } else {
+      editButton.textContent = 'Sign in to edit';
+      editButton.dataset.routeAction = 'signin';
+    }
+
+    actions.appendChild(editButton);
+    item.appendChild(actions);
     list.appendChild(item);
   });
 }
@@ -1782,15 +2097,39 @@ function populateRouteDeleteSelect(state, routes) {
 function handleSavedRoutesListClick(event) {
   const target = event.target instanceof HTMLElement ? event.target.closest('[data-route-action]') : null;
   if (!target) return;
+
   const action = target.dataset.routeAction;
   const routeId = target.dataset.routeId;
-  if (action === 'delete' && routeId) {
-    const savedState = routeEditorState ? routeEditorState.savedRoutes : null;
-    if (!savedState) return;
-    const route = savedState.routes.find(entry => entry.routeId === routeId);
-    if (route) {
-      deleteSavedRouteRecord(route, target, savedState);
+  const savedState = routeEditorState ? routeEditorState.savedRoutes : null;
+
+  if (action === 'signin') {
+    if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+      window.location.href = '/registration.html#login';
     }
+    return;
+  }
+
+  if (!savedState) {
+    return;
+  }
+
+  if (!routeId) {
+    if (action === 'edit') {
+      setEditorStatus(routeEditorState, 'Select a specific route to edit.');
+    }
+    return;
+  }
+
+  const route = savedState.routes.find(entry => String(entry.routeId) === String(routeId));
+  if (!route) return;
+
+  if (action === 'edit') {
+    loadRouteForEditing(route);
+    return;
+  }
+
+  if (action === 'delete') {
+    deleteSavedRouteRecord(route, target, savedState);
   }
 }
 
@@ -1927,6 +2266,8 @@ function setupRouteAdder(map) {
     savedRoutes: null,
     contributor: initialContributor,
     lastSaveDetails: null,
+    editingRouteId: null,
+    editingRouteName: '',
     polyline: new google.maps.Polyline({
       map,
       strokeColor: '#2563eb',
@@ -2051,6 +2392,8 @@ function startDrawingRoute(state) {
   state.mode = 'draw';
   state.path = [];
   state.snappedPath = [];
+  state.editingRouteId = null;
+  state.editingRouteName = '';
   initialiseRouteHistory(state);
   updateDraftPolyline(state);
   updateSnappedPolyline(state);
@@ -2106,6 +2449,8 @@ function deleteCurrentRoute(state) {
   state.mode = 'idle';
   state.path = [];
   state.snappedPath = [];
+  state.editingRouteId = null;
+  state.editingRouteName = '';
   initialiseRouteHistory(state);
   updateDraftPolyline(state);
   updateSnappedPolyline(state);
@@ -2256,6 +2601,110 @@ async function snapRouteToRoad(state) {
   }
 }
 
+function focusEditorMapOnPath(state, path) {
+  if (!state || !state.map || !Array.isArray(path) || path.length === 0) {
+    return;
+  }
+
+  try {
+    const bounds = new google.maps.LatLngBounds();
+    path.forEach(point => {
+      if (!point) return;
+      const lat = Number(point.lat);
+      const lng = Number(point.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        bounds.extend({ lat, lng });
+      }
+    });
+
+    if (!bounds.isEmpty()) {
+      state.map.fitBounds(bounds, getRouteFitPadding());
+    }
+  } catch (error) {
+    console.warn('Unable to focus editor map on saved route', error);
+  }
+}
+
+function loadRouteForEditing(route) {
+  if (!routeEditorState || !route) return;
+
+  const session = getAuthSession();
+  if (!session || !session.user) {
+    setEditorStatus(
+      routeEditorState,
+      'Sign in to edit saved routes. Use the account menu above to log in.',
+    );
+    if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+      window.location.href = '/registration.html#login';
+    }
+    return;
+  }
+
+  const path = cloneCoordinateList(
+    Array.isArray(route.path) && route.path.length ? route.path : route.snappedPath || [],
+  );
+  const snappedPath = cloneCoordinateList(
+    Array.isArray(route.snappedPath) && route.snappedPath.length
+      ? route.snappedPath
+      : path,
+  );
+
+  if (!path.length && !snappedPath.length) {
+    setEditorStatus(
+      routeEditorState,
+      'This saved route does not include enough map data to edit.',
+    );
+    return;
+  }
+
+  const workingPath = path.length ? path : snappedPath;
+
+  routeEditorState.mode = 'edit';
+  routeEditorState.editingRouteId = route.routeId;
+  routeEditorState.editingRouteName = route.name || '';
+  routeEditorState.path = workingPath;
+  routeEditorState.snappedPath = snappedPath.length ? snappedPath : workingPath;
+
+  initialiseRouteHistory(routeEditorState);
+  routeEditorState.history = [cloneCoordinateList(routeEditorState.path)];
+  routeEditorState.redoStack = [];
+
+  const stops = Array.isArray(route.stops) ? route.stops : [];
+  const firstStop = stops[0] || null;
+  const lastStop = stops[stops.length - 1] || null;
+  const fare = route.fare || {};
+
+  routeEditorState.lastSaveDetails = {
+    pointAName: firstStop && typeof firstStop.name === 'string' ? firstStop.name : '',
+    pointBName:
+      lastStop && typeof lastStop.name === 'string' ? lastStop.name : firstStop && firstStop.name ? firstStop.name : '',
+    fareMin: Number.isFinite(Number(fare.min)) ? Number(fare.min) : '',
+    fareMax: Number.isFinite(Number(fare.max)) ? Number(fare.max) : '',
+    notes: typeof route.notes === 'string' ? route.notes : '',
+  };
+
+  const contributor = getRegisteredContributorDetails();
+  if (contributorHasDetails(contributor)) {
+    setRouteContributor(contributor);
+    routeEditorState.contributor = contributor;
+  }
+
+  updateDraftPolyline(routeEditorState);
+  updateSnappedPolyline(routeEditorState);
+
+  focusEditorMapOnPath(routeEditorState, routeEditorState.snappedPath.length ? routeEditorState.snappedPath : routeEditorState.path);
+  if (routeEditorState.map) {
+    repositionMapControls(routeEditorState.map.getDiv());
+  }
+
+  const routeLabel = route.name || 'Saved route';
+  setEditorStatus(
+    routeEditorState,
+    `Editing "${routeLabel}". Adjust the path or choose Save to update the shared directory.`,
+  );
+  updateEditorControls(routeEditorState);
+}
+
 async function saveCurrentRoute(state) {
   const workingPath = state.snappedPath.length > 1 ? state.snappedPath : state.path;
   if (workingPath.length < 2) {
@@ -2263,32 +2712,42 @@ async function saveCurrentRoute(state) {
     return;
   }
 
-  const sessionUser = getLoggedInUser();
-  const stateContributor = normalizeContributor(state.contributor || {});
-  let contributorDefaults = stateContributor;
-
-  if (!contributorHasDetails(contributorDefaults)) {
-    const storedContributor = getRouteContributor();
-    if (contributorHasDetails(storedContributor)) {
-      contributorDefaults = normalizeContributor(storedContributor);
-    } else if (sessionUser) {
-      contributorDefaults = normalizeContributor({
-        username: sessionUser.username,
-        homeTown: sessionUser.homeTown,
-      });
-    } else {
-      contributorDefaults = normalizeContributor();
+  const session = getAuthSession();
+  const sessionUser = session && session.user ? session.user : null;
+  if (!sessionUser) {
+    setEditorStatus(state, 'Sign in to save taxi routes. Use the account menu above to log in.');
+    if (!openAccountMenu({ focus: 'signin', redirect: false })) {
+      window.location.href = '/registration.html#login';
     }
+    return;
   }
+
+  const contributorDefaults = getRegisteredContributorDetails();
+  const hasContributorUsername = Boolean(contributorDefaults.username);
+  const hasContributorHomeTown = Boolean(contributorDefaults.homeTown);
+
+  if (!hasContributorUsername || !hasContributorHomeTown) {
+    setEditorStatus(
+      state,
+      'Complete your registration profile with a username and home town before saving routes.',
+    );
+    if (!openAccountMenu({ focus: 'profile', redirect: false })) {
+      window.location.href = '/registration.html#account';
+    }
+    return;
+  }
+
+  setRouteContributor(contributorDefaults);
+  state.contributor = { ...contributorDefaults };
 
   const previousDetails = state.lastSaveDetails || {};
   const dialogDefaults = {
     pointAName: previousDetails.pointAName || '',
     pointBName: previousDetails.pointBName || '',
-    username: contributorDefaults.username,
-    homeTown: contributorDefaults.homeTown,
+    notes: previousDetails.notes || '',
     fareMin: previousDetails.fareMin,
     fareMax: previousDetails.fareMax,
+    contributor: contributorDefaults,
   };
 
   const details = await openRouteSaveDialog(dialogDefaults);
@@ -2297,18 +2756,32 @@ async function saveCurrentRoute(state) {
     return;
   }
 
-  setRouteContributor({ username: details.username, homeTown: details.homeTown });
   state.contributor = { username: details.username, homeTown: details.homeTown };
-  state.lastSaveDetails = { ...details };
+  state.lastSaveDetails = {
+    pointAName: details.pointAName,
+    pointBName: details.pointBName,
+    notes: details.notes || '',
+    fareMin: details.fareMin,
+    fareMax: details.fareMax,
+  };
 
   const routeNameParts = [details.pointAName, details.pointBName].filter(part => part && part.trim());
   const generatedName = routeNameParts.length ? routeNameParts.join(' – ') : 'New Taxi Route';
+
+  const contributorNameParts = [
+    typeof sessionUser.firstName === 'string' ? sessionUser.firstName.trim() : '',
+    typeof sessionUser.lastName === 'string' ? sessionUser.lastName.trim() : '',
+  ].filter(Boolean);
+  const contributorDisplayName = contributorNameParts.join(' ').trim();
 
   const payload = {
     name: generatedName,
     gesture: '',
     province: '',
-    city: details.homeTown,
+    city: '',
+    pointAName: details.pointAName,
+    pointBName: details.pointBName,
+    notes: details.notes || '',
     fare: {
       min: Number.isFinite(details.fareMin) ? details.fareMin : 0,
       max: Number.isFinite(details.fareMax) ? details.fareMax : Number.isFinite(details.fareMin) ? details.fareMin : 0,
@@ -2322,18 +2795,24 @@ async function saveCurrentRoute(state) {
     snappedPath: cloneCoordinateList(state.snappedPath.length ? state.snappedPath : state.path),
     variations: [],
     addedBy: {
-      name: details.username,
+      name: contributorDisplayName || details.username,
       username: details.username,
       homeTown: details.homeTown,
     },
   };
 
+  const isEditingExisting = Boolean(state.editingRouteId);
+  const endpoint = isEditingExisting
+    ? `/api/routes/${encodeURIComponent(state.editingRouteId)}`
+    : '/api/routes';
+  const method = isEditingExisting ? 'PUT' : 'POST';
+
   setEditorBusy(state, true);
-  setEditorStatus(state, 'Saving route...');
+  setEditorStatus(state, isEditingExisting ? 'Updating route...' : 'Saving route...');
 
   try {
-    const response = await fetch('/api/routes', {
-      method: 'POST',
+    const response = await fetch(endpoint, {
+      method,
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(payload),
     });
@@ -2341,15 +2820,20 @@ async function saveCurrentRoute(state) {
       const errorData = await response.json().catch(() => ({}));
       const message = errorData && errorData.message
         ? errorData.message
-        : 'Unable to save the route right now. Please try again.';
+        : isEditingExisting
+          ? 'Unable to update the route right now. Please try again.'
+          : 'Unable to save the route right now. Please try again.';
       setEditorStatus(state, message);
       return;
     }
     const saved = await response.json();
-    setEditorStatus(state, `Route "${saved.name || generatedName}" saved successfully.`);
+    const actionVerb = isEditingExisting ? 'updated' : 'saved';
+    setEditorStatus(state, `Route "${saved.name || generatedName}" ${actionVerb} successfully.`);
     state.mode = 'idle';
     state.path = [];
     state.snappedPath = [];
+    state.editingRouteId = null;
+    state.editingRouteName = '';
     initialiseRouteHistory(state);
     updateDraftPolyline(state);
     updateSnappedPolyline(state);
@@ -2357,9 +2841,17 @@ async function saveCurrentRoute(state) {
     if (routeEditorState && routeEditorState.savedRoutes) {
       loadSavedRoutesForEditor(routeEditorState.savedRoutes, { silent: true, force: true });
     }
+    if (typeof loadRoutesForFinder === 'function') {
+      loadRoutesForFinder();
+    }
   } catch (error) {
     console.error('Unable to save route', error);
-    setEditorStatus(state, 'Unable to save the route right now. Please try again.');
+    setEditorStatus(
+      state,
+      isEditingExisting
+        ? 'Unable to update the route right now. Please try again.'
+        : 'Unable to save the route right now. Please try again.',
+    );
   } finally {
     setEditorBusy(state, false);
   }
@@ -3468,15 +3960,18 @@ function normalizeRouteRecord(rawRoute) {
   const city = typeof rawRoute.city === 'string' && rawRoute.city.trim() ? rawRoute.city.trim() : 'Unspecified city';
   const path = cloneCoordinateList(Array.isArray(rawRoute.path) ? rawRoute.path : []);
   const snappedPath = cloneCoordinateList(Array.isArray(rawRoute.snappedPath) ? rawRoute.snappedPath : []);
-  const stops = Array.isArray(rawRoute.stops)
-    ? rawRoute.stops
-        .map(stop => ({
-          name: typeof stop.name === 'string' && stop.name.trim() ? stop.name.trim() : 'Stop',
-          lat: Number(stop.lat),
-          lng: Number(stop.lng),
-        }))
-        .filter(stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng))
-    : [];
+  const rawStops = Array.isArray(rawRoute.stops) ? rawRoute.stops : [];
+  const stops = rawStops
+    .map(stop => ({
+      name: typeof stop.name === 'string' && stop.name.trim() ? stop.name.trim() : 'Stop',
+      lat: Number(stop.lat),
+      lng: Number(stop.lng),
+    }))
+    .filter(stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng));
+  const fallbackPointA = rawStops.length && typeof rawStops[0].name === 'string' ? rawStops[0].name.trim() : '';
+  const fallbackPointB = rawStops.length && typeof rawStops[rawStops.length - 1].name === 'string'
+    ? rawStops[rawStops.length - 1].name.trim()
+    : fallbackPointA;
   const fare = rawRoute.fare
     ? {
         min: Number(rawRoute.fare.min),
@@ -3497,6 +3992,13 @@ function normalizeRouteRecord(rawRoute) {
     : { name: '', username: '', homeTown: '' };
   const createdAt = typeof rawRoute.createdAt === 'string' ? rawRoute.createdAt : '';
   const updatedAt = typeof rawRoute.updatedAt === 'string' ? rawRoute.updatedAt : '';
+  const pointAName = typeof rawRoute.pointAName === 'string' && rawRoute.pointAName.trim()
+    ? rawRoute.pointAName.trim()
+    : fallbackPointA;
+  const pointBName = typeof rawRoute.pointBName === 'string' && rawRoute.pointBName.trim()
+    ? rawRoute.pointBName.trim()
+    : fallbackPointB;
+  const notes = typeof rawRoute.notes === 'string' ? rawRoute.notes.trim() : '';
 
   return {
     ...rawRoute,
@@ -3507,6 +4009,9 @@ function normalizeRouteRecord(rawRoute) {
     path,
     snappedPath,
     stops,
+    pointAName,
+    pointBName,
+    notes,
     fare,
     frequencyPerHour: Number.isFinite(frequency) ? frequency : null,
     nameLower: name.toLowerCase(),
@@ -3611,6 +4116,18 @@ function renderRouteDetails(route, options = {}) {
   const gestureText = route.gesture ? escapeHtml(route.gesture) : 'Not specified';
   const stopsMarkup = buildStopsMarkup(route.stops);
   const variationsCount = Array.isArray(route.variations) ? route.variations.length : 0;
+  const startNameRaw = typeof route.pointAName === 'string' && route.pointAName.trim()
+    ? route.pointAName.trim()
+    : Array.isArray(route.stops) && route.stops.length
+      ? route.stops[0].name
+      : '';
+  const endNameRaw = typeof route.pointBName === 'string' && route.pointBName.trim()
+    ? route.pointBName.trim()
+    : Array.isArray(route.stops) && route.stops.length
+      ? route.stops[route.stops.length - 1].name
+      : '';
+  const pointAValue = escapeHtml(startNameRaw || 'Unspecified');
+  const pointBValue = escapeHtml(endNameRaw || 'Unspecified');
   const contributorUsername = route.addedBy && route.addedBy.username ? route.addedBy.username : '';
   const contributorHomeTown = route.addedBy && route.addedBy.homeTown ? route.addedBy.homeTown : '';
   let contributorMarkup = '';
@@ -3632,12 +4149,15 @@ function renderRouteDetails(route, options = {}) {
   const drawnPathMarkup = buildPathSection('Drawn path', route.path);
   const snappedPathMarkup = buildPathSection('Snapped path', route.snappedPath);
   const rawDataMarkup = buildRawRouteDataSection(route);
+  const notesMarkup = buildNotesMarkup(route.notes);
 
   container.innerHTML = `
     <h2>${escapeHtml(route.name)}</h2>
     <ul class="route-details__meta">
       <li><strong>Province:</strong> ${escapeHtml(route.province || 'Unspecified')}</li>
       <li><strong>City:</strong> ${escapeHtml(route.city || 'Unspecified')}</li>
+      <li><strong>Route point A:</strong> ${pointAValue}</li>
+      <li><strong>Route point B:</strong> ${pointBValue}</li>
       <li><strong>Fare:</strong> ${fareText}</li>
       <li><strong>Gesture:</strong> ${gestureText}</li>
       <li><strong>Frequency:</strong> ${frequencyMarkup}</li>
@@ -3647,6 +4167,7 @@ function renderRouteDetails(route, options = {}) {
       ${createdAtMarkup}
       ${updatedAtMarkup}
     </ul>
+    ${notesMarkup}
     ${rushHoursMarkup}
     ${quietHoursMarkup}
     ${variationsMarkup}
@@ -3703,6 +4224,21 @@ function buildTimeSection(label, values, emptyMessage) {
     <div class="route-details__section">
       <strong>${escapeHtml(label)}</strong>
       <ul class="route-details__chips">${chips}</ul>
+    </div>
+  `;
+}
+
+function buildNotesMarkup(notes) {
+  const text = typeof notes === 'string' ? notes.trim() : '';
+  if (!text) {
+    return '';
+  }
+
+  const formatted = escapeHtml(text).replace(/\r?\n/g, '<br />');
+  return `
+    <div class="route-details__section">
+      <strong>Notes &amp; comments</strong>
+      <p>${formatted}</p>
     </div>
   `;
 }
