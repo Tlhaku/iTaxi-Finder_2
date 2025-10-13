@@ -1717,6 +1717,7 @@ function setupRouteSaveDialog() {
     inputs: {
       pointA: dialog.querySelector('[data-route-save-point-a]'),
       pointB: dialog.querySelector('[data-route-save-point-b]'),
+      notes: dialog.querySelector('[data-route-save-notes]'),
       fareMin: dialog.querySelector('[data-route-save-fare-min]'),
       fareMax: dialog.querySelector('[data-route-save-fare-max]'),
     },
@@ -1769,6 +1770,7 @@ function setupRouteSaveDialog() {
       const { inputs } = routeSaveDialogState;
       const pointA = inputs.pointA ? inputs.pointA.value.trim() : '';
       const pointB = inputs.pointB ? inputs.pointB.value.trim() : '';
+      const notes = inputs.notes ? inputs.notes.value.trim() : '';
       const contributor = routeSaveDialogState.contributor || { username: '', homeTown: '' };
       const username = typeof contributor.username === 'string' ? contributor.username.trim() : '';
       const homeTown = typeof contributor.homeTown === 'string' ? contributor.homeTown.trim() : '';
@@ -1816,6 +1818,7 @@ function setupRouteSaveDialog() {
         pointBName: pointB,
         username,
         homeTown,
+        notes,
         fareMin: fareMinValue,
         fareMax: fareMaxValue,
       });
@@ -1841,6 +1844,7 @@ function openRouteSaveDialog(defaults = {}) {
   const normalized = {
     pointAName: typeof defaults.pointAName === 'string' ? defaults.pointAName.trim() : '',
     pointBName: typeof defaults.pointBName === 'string' ? defaults.pointBName.trim() : '',
+    notes: typeof defaults.notes === 'string' ? defaults.notes.trim() : '',
     fareMin: Number.isFinite(Number(defaults.fareMin)) ? Number(defaults.fareMin) : '',
     fareMax: Number.isFinite(Number(defaults.fareMax)) ? Number(defaults.fareMax) : '',
   };
@@ -1857,6 +1861,7 @@ function openRouteSaveDialog(defaults = {}) {
 
   if (state.inputs.pointA) state.inputs.pointA.value = normalized.pointAName;
   if (state.inputs.pointB) state.inputs.pointB.value = normalized.pointBName;
+  if (state.inputs.notes) state.inputs.notes.value = normalized.notes;
   if (state.inputs.fareMin) state.inputs.fareMin.value = normalized.fareMin === '' ? '' : normalized.fareMin;
   if (state.inputs.fareMax) state.inputs.fareMax.value = normalized.fareMax === '' ? '' : normalized.fareMax;
 
@@ -2675,6 +2680,7 @@ function loadRouteForEditing(route) {
       lastStop && typeof lastStop.name === 'string' ? lastStop.name : firstStop && firstStop.name ? firstStop.name : '',
     fareMin: Number.isFinite(Number(fare.min)) ? Number(fare.min) : '',
     fareMax: Number.isFinite(Number(fare.max)) ? Number(fare.max) : '',
+    notes: typeof route.notes === 'string' ? route.notes : '',
   };
 
   const contributor = getRegisteredContributorDetails();
@@ -2738,6 +2744,7 @@ async function saveCurrentRoute(state) {
   const dialogDefaults = {
     pointAName: previousDetails.pointAName || '',
     pointBName: previousDetails.pointBName || '',
+    notes: previousDetails.notes || '',
     fareMin: previousDetails.fareMin,
     fareMax: previousDetails.fareMax,
     contributor: contributorDefaults,
@@ -2753,6 +2760,7 @@ async function saveCurrentRoute(state) {
   state.lastSaveDetails = {
     pointAName: details.pointAName,
     pointBName: details.pointBName,
+    notes: details.notes || '',
     fareMin: details.fareMin,
     fareMax: details.fareMax,
   };
@@ -2771,6 +2779,9 @@ async function saveCurrentRoute(state) {
     gesture: '',
     province: '',
     city: '',
+    pointAName: details.pointAName,
+    pointBName: details.pointBName,
+    notes: details.notes || '',
     fare: {
       min: Number.isFinite(details.fareMin) ? details.fareMin : 0,
       max: Number.isFinite(details.fareMax) ? details.fareMax : Number.isFinite(details.fareMin) ? details.fareMin : 0,
@@ -3949,15 +3960,18 @@ function normalizeRouteRecord(rawRoute) {
   const city = typeof rawRoute.city === 'string' && rawRoute.city.trim() ? rawRoute.city.trim() : 'Unspecified city';
   const path = cloneCoordinateList(Array.isArray(rawRoute.path) ? rawRoute.path : []);
   const snappedPath = cloneCoordinateList(Array.isArray(rawRoute.snappedPath) ? rawRoute.snappedPath : []);
-  const stops = Array.isArray(rawRoute.stops)
-    ? rawRoute.stops
-        .map(stop => ({
-          name: typeof stop.name === 'string' && stop.name.trim() ? stop.name.trim() : 'Stop',
-          lat: Number(stop.lat),
-          lng: Number(stop.lng),
-        }))
-        .filter(stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng))
-    : [];
+  const rawStops = Array.isArray(rawRoute.stops) ? rawRoute.stops : [];
+  const stops = rawStops
+    .map(stop => ({
+      name: typeof stop.name === 'string' && stop.name.trim() ? stop.name.trim() : 'Stop',
+      lat: Number(stop.lat),
+      lng: Number(stop.lng),
+    }))
+    .filter(stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng));
+  const fallbackPointA = rawStops.length && typeof rawStops[0].name === 'string' ? rawStops[0].name.trim() : '';
+  const fallbackPointB = rawStops.length && typeof rawStops[rawStops.length - 1].name === 'string'
+    ? rawStops[rawStops.length - 1].name.trim()
+    : fallbackPointA;
   const fare = rawRoute.fare
     ? {
         min: Number(rawRoute.fare.min),
@@ -3978,6 +3992,13 @@ function normalizeRouteRecord(rawRoute) {
     : { name: '', username: '', homeTown: '' };
   const createdAt = typeof rawRoute.createdAt === 'string' ? rawRoute.createdAt : '';
   const updatedAt = typeof rawRoute.updatedAt === 'string' ? rawRoute.updatedAt : '';
+  const pointAName = typeof rawRoute.pointAName === 'string' && rawRoute.pointAName.trim()
+    ? rawRoute.pointAName.trim()
+    : fallbackPointA;
+  const pointBName = typeof rawRoute.pointBName === 'string' && rawRoute.pointBName.trim()
+    ? rawRoute.pointBName.trim()
+    : fallbackPointB;
+  const notes = typeof rawRoute.notes === 'string' ? rawRoute.notes.trim() : '';
 
   return {
     ...rawRoute,
@@ -3988,6 +4009,9 @@ function normalizeRouteRecord(rawRoute) {
     path,
     snappedPath,
     stops,
+    pointAName,
+    pointBName,
+    notes,
     fare,
     frequencyPerHour: Number.isFinite(frequency) ? frequency : null,
     nameLower: name.toLowerCase(),
@@ -4092,6 +4116,18 @@ function renderRouteDetails(route, options = {}) {
   const gestureText = route.gesture ? escapeHtml(route.gesture) : 'Not specified';
   const stopsMarkup = buildStopsMarkup(route.stops);
   const variationsCount = Array.isArray(route.variations) ? route.variations.length : 0;
+  const startNameRaw = typeof route.pointAName === 'string' && route.pointAName.trim()
+    ? route.pointAName.trim()
+    : Array.isArray(route.stops) && route.stops.length
+      ? route.stops[0].name
+      : '';
+  const endNameRaw = typeof route.pointBName === 'string' && route.pointBName.trim()
+    ? route.pointBName.trim()
+    : Array.isArray(route.stops) && route.stops.length
+      ? route.stops[route.stops.length - 1].name
+      : '';
+  const pointAValue = escapeHtml(startNameRaw || 'Unspecified');
+  const pointBValue = escapeHtml(endNameRaw || 'Unspecified');
   const contributorUsername = route.addedBy && route.addedBy.username ? route.addedBy.username : '';
   const contributorHomeTown = route.addedBy && route.addedBy.homeTown ? route.addedBy.homeTown : '';
   let contributorMarkup = '';
@@ -4113,12 +4149,15 @@ function renderRouteDetails(route, options = {}) {
   const drawnPathMarkup = buildPathSection('Drawn path', route.path);
   const snappedPathMarkup = buildPathSection('Snapped path', route.snappedPath);
   const rawDataMarkup = buildRawRouteDataSection(route);
+  const notesMarkup = buildNotesMarkup(route.notes);
 
   container.innerHTML = `
     <h2>${escapeHtml(route.name)}</h2>
     <ul class="route-details__meta">
       <li><strong>Province:</strong> ${escapeHtml(route.province || 'Unspecified')}</li>
       <li><strong>City:</strong> ${escapeHtml(route.city || 'Unspecified')}</li>
+      <li><strong>Route point A:</strong> ${pointAValue}</li>
+      <li><strong>Route point B:</strong> ${pointBValue}</li>
       <li><strong>Fare:</strong> ${fareText}</li>
       <li><strong>Gesture:</strong> ${gestureText}</li>
       <li><strong>Frequency:</strong> ${frequencyMarkup}</li>
@@ -4128,6 +4167,7 @@ function renderRouteDetails(route, options = {}) {
       ${createdAtMarkup}
       ${updatedAtMarkup}
     </ul>
+    ${notesMarkup}
     ${rushHoursMarkup}
     ${quietHoursMarkup}
     ${variationsMarkup}
@@ -4184,6 +4224,21 @@ function buildTimeSection(label, values, emptyMessage) {
     <div class="route-details__section">
       <strong>${escapeHtml(label)}</strong>
       <ul class="route-details__chips">${chips}</ul>
+    </div>
+  `;
+}
+
+function buildNotesMarkup(notes) {
+  const text = typeof notes === 'string' ? notes.trim() : '';
+  if (!text) {
+    return '';
+  }
+
+  const formatted = escapeHtml(text).replace(/\r?\n/g, '<br />');
+  return `
+    <div class="route-details__section">
+      <strong>Notes &amp; comments</strong>
+      <p>${formatted}</p>
     </div>
   `;
 }
