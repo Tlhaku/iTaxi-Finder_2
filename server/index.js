@@ -13,6 +13,9 @@ const routes = [
   {
     routeId: 'sample',
     name: 'Sample Route',
+    pointAName: 'Downtown Taxi Rank',
+    pointBName: 'Airport Terminal A',
+    notes: 'Peak-hour taxis run every 10 minutes. Expect light traffic after 19:00.',
     fare: { min: 10, max: 15, currency: 'ZAR' },
     gesture: 'raise hand',
     stops: [{ name: 'Stop A', lat: -26.2041, lng: 28.0473 }],
