@@ -7,18 +7,153 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
-  <div id="topbar">
-    <a href="/">iTaxi-Finder</a>
-    <a href="/">Route Finder</a>
-    <a href="/route-adder.html">Route Adder</a>
-    <a href="/delivery.html">Delivery</a>
-    <a href="/community.html">Community</a>
-    <a href="/registration.html">Registration</a>
-    <a href="/about.html">About</a>
-    <button onclick="toggleUI()">Hide UI</button>
-  </div>
+<body class="page map-background page-registration">
+    <div id="topbar" data-nav-open="false">
+      <a href="/" class="topbar__brand">iTaxi-Finder</a>
+      <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
+      <span class="topbar__menu-icon" aria-hidden="true">
+        <span class="topbar__menu-line"></span>
+        <span class="topbar__menu-line"></span>
+        <span class="topbar__menu-line"></span>
+      </span>
+      <span class="visually-hidden">Toggle navigation</span>
+    </button>
+      <div class="mobile-nav" data-nav-container>
+        <div class="mobile-nav__header">
+          <span class="mobile-nav__title">Menu</span>
+          <button type="button" class="mobile-nav__close" data-nav-close>
+            <span class="visually-hidden">Close navigation</span>
+            <span class="mobile-nav__close-icon" aria-hidden="true">
+              <span class="mobile-nav__close-line"></span>
+              <span class="mobile-nav__close-line"></span>
+            </span>
+          </button>
+        </div>
+        <nav id="topbar-navigation" class="topbar__links" data-nav-links>
+              <a href="/route-finder.html">Route Finder</a>
+              <a href="/route-adder.html">Route Adder</a>
+              <a href="/delivery.html">Delivery</a>
+              <a href="/community.html">Community</a>
+              <a href="/registration.html" aria-current="page">Registration</a>
+              <a href="/about.html">About</a>
+            </nav>
+      </div>
+      <div class="mobile-nav__backdrop" data-nav-backdrop></div>
+    </div>
+  <main
+    class="content-panel overlay-panel"
+    aria-labelledby="registration-heading"
+    data-draggable-overlay
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <h1 id="registration-heading">Join the iTaxi-Finder network</h1>
+    <p>Register your role to unlock tools tailored for collectors, drivers, depot owners, and partners. We capture just enough
+      information to verify your business, route alignment, and preferred contact channels before activating your workspace.</p>
+    <form id="login" class="registration-login" data-static-form data-login-form>
+      <fieldset>
+        <legend>Already registered? Sign in</legend>
+        <label>
+          Username
+          <input type="text" name="username" autocomplete="username" minlength="3" required />
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" autocomplete="current-password" minlength="4" required />
+        </label>
+        <p class="registration-error" data-login-error hidden role="alert"></p>
+        <button type="submit" class="cta secondary">Sign in</button>
+      </fieldset>
+    </form>
+    <section class="registration-account" aria-live="polite">
+      <p class="registration-account__status" data-auth-status>Not signed in.</p>
+      <button type="button" class="cta secondary registration-account__signout" data-logout-button hidden>Sign out</button>
+    </section>
+    <form class="registration-form" data-static-form data-registration-form>
+      <div class="registration-grid">
+        <label>
+          First name (kept private)
+          <input type="text" name="firstName" placeholder="e.g. Lerato" autocomplete="given-name" required />
+        </label>
+        <label>
+          Last name (kept private)
+          <input type="text" name="lastName" placeholder="e.g. Mokoena" autocomplete="family-name" required />
+        </label>
+      </div>
+      <label>
+        Short account password
+        <input
+          type="password"
+          name="password"
+          placeholder="Create a short password"
+          autocomplete="new-password"
+          minlength="4"
+          required
+        />
+      </label>
+      <label>
+        Custom username (public)
+        <input
+          type="text"
+          name="username"
+          placeholder="Choose a public username"
+          autocomplete="username"
+          minlength="3"
+          required
+        />
+      </label>
+      <label>
+        Home town (public)
+        <input
+          type="text"
+          name="homeTown"
+          placeholder="e.g. Soweto"
+          autocomplete="address-level2"
+          required
+        />
+      </label>
+      <fieldset class="registration-roles">
+        <legend>Select your roles (choose at least one)</legend>
+        <div class="registration-roles__options" data-role-options>
+          <label><input type="checkbox" name="roles" value="taxi-manager" data-role-input /> Taxi Manager</label>
+          <label><input type="checkbox" name="roles" value="taxi-owner" data-role-input /> Taxi Owner</label>
+          <label><input type="checkbox" name="roles" value="taxi-rider" data-role-input /> Taxi Rider (Commuter)</label>
+          <label><input type="checkbox" name="roles" value="rank-manager" data-role-input /> Rank Manager</label>
+          <label><input type="checkbox" name="roles" value="collector" data-role-input /> Collector</label>
+          <label><input type="checkbox" name="roles" value="spaza-owner" data-role-input /> Spaza Owner</label>
+          <label><input type="checkbox" name="roles" value="monthly-subscriber" data-role-input /> Monthly Subscriber</label>
+        </div>
+      </fieldset>
+      <label>
+        Email address
+        <input type="email" name="email" placeholder="you@example.com" />
+      </label>
+      <label>
+        Mobile number
+        <input type="tel" name="phone" placeholder="+27" />
+      </label>
+      <label>
+        Operating routes or service areas
+        <textarea name="routes" placeholder="List the routes, ranks, or suburbs you serve"></textarea>
+      </label>
+      <div class="registration-role-fields" data-role-fields></div>
+      <p class="registration-error" data-registration-error hidden role="alert"></p>
+      <div class="registration-owner-actions" data-registration-actions>
+        <button type="submit" class="cta">Submit registration</button>
+      </div>
+    </form>
+    <section
+      id="registration-success"
+      class="registration-success overlay-card"
+      hidden
+      aria-labelledby="registration-success-heading"
+      tabindex="-1"
+    >
+      <h2 id="registration-success-heading">Registration submitted</h2>
+      <p class="registration-success__message" data-registration-success-message></p>
+      <div class="registration-success__actions" data-registration-success-actions></div>
+      <p class="registration-feedback" data-registration-feedback aria-live="polite"></p>
+    </section>
+  </main>
   <div id="map"></div>
-
 </body>
 </html>

@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>iTaxi-Finder Platform</title>
+  <title>Route Finder</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body class="page map-background page-home">
+<body class="page map-background page-route-finder">
     <div id="topbar" data-nav-open="false">
-      <a href="/" class="topbar__brand" aria-current="page">iTaxi-Finder</a>
+      <a href="/" class="topbar__brand">iTaxi-Finder</a>
       <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
       <span class="topbar__menu-icon" aria-hidden="true">
         <span class="topbar__menu-line"></span>
@@ -30,7 +30,7 @@
           </button>
         </div>
         <nav id="topbar-navigation" class="topbar__links" data-nav-links>
-              <a href="/route-finder.html">Route Finder</a>
+              <a href="/route-finder.html" aria-current="page">Route Finder</a>
               <a href="/route-adder.html">Route Adder</a>
               <a href="/delivery.html">Delivery</a>
               <a href="/community.html">Community</a>
@@ -40,27 +40,44 @@
       </div>
       <div class="mobile-nav__backdrop" data-nav-backdrop></div>
     </div>
+  <form
+    id="search"
+    class="overlay-panel"
+    role="search"
+    data-draggable-overlay
+    data-overlay-label="Route search"
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <label class="visually-hidden" for="search-input">Search routes</label>
+    <input
+      id="search-input"
+      type="search"
+      name="q"
+      placeholder="Search saved routes by name, city or province"
+      aria-label="Search saved routes"
+    />
+    <button type="submit" class="cta secondary">Search</button>
+  </form>
   <section
-    class="content-panel overlay-panel content-panel--home"
-    aria-labelledby="home-heading"
+    id="finder-panel"
+    class="overlay-panel route-finder-panel"
+    aria-labelledby="finder-heading"
     data-draggable-overlay
   >
     <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
-    <h1 id="home-heading">iTaxi-Finder keeps every commute in the know</h1>
-    <p>
-      We built iTaxi-Finder to arm everyday commuters with clear, street-level taxi intel no matter where they live or
-      travel in South Africa. Tap into local hand signals, fares, and route variations so you always know which taxi to
-      catch and where it will take you.
+    <h1 id="finder-heading">Saved routes directory</h1>
+    <p class="route-finder-panel__intro">
+      Browse every saved corridor in the system. Select a route to highlight it on the map and review fares, stops and
+      service hours.
     </p>
-    <p>
-      Fleet owners and managers can watch their taxis in real time, spot gaps in coverage, and guide drivers with the
-      same live map. Explore the Route Finder to see what’s running nearby, or open the Route Adder to chart new
-      corridors and keep your data sharp.
+    <label for="route-select" class="route-finder-panel__label">Saved routes</label>
+    <select id="route-select" name="route-select" aria-describedby="route-select-help">
+      <option value="">Select a saved route</option>
+    </select>
+    <p id="route-select-help" class="route-finder-panel__hint">
+      Routes are grouped by province and city. Start typing above to narrow the list.
     </p>
-    <div class="cta-row">
-      <a class="cta" href="/route-finder.html">Explore routes</a>
-      <a class="cta secondary" href="/route-adder.html">Add a new route</a>
-    </div>
+    <div id="route-details" class="route-details" aria-live="polite" aria-atomic="true"></div>
   </section>
   <div id="map"></div>
 </body>

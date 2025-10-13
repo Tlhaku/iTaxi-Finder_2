@@ -7,18 +7,191 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="app.js" defer></script>
 </head>
-<body>
-  <div id="topbar">
-    <a href="/">iTaxi-Finder</a>
-    <a href="/">Route Finder</a>
-    <a href="/route-adder.html">Route Adder</a>
-    <a href="/delivery.html">Delivery</a>
-    <a href="/community.html">Community</a>
-    <a href="/registration.html">Registration</a>
-    <a href="/about.html">About</a>
-    <button onclick="toggleUI()">Hide UI</button>
-  </div>
+<body class="page map-background page-route-adder">
+    <div id="topbar" data-nav-open="false">
+      <a href="/" class="topbar__brand">iTaxi-Finder</a>
+      <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
+      <span class="topbar__menu-icon" aria-hidden="true">
+        <span class="topbar__menu-line"></span>
+        <span class="topbar__menu-line"></span>
+        <span class="topbar__menu-line"></span>
+      </span>
+      <span class="visually-hidden">Toggle navigation</span>
+    </button>
+      <div class="mobile-nav" data-nav-container>
+        <div class="mobile-nav__header">
+          <span class="mobile-nav__title">Menu</span>
+          <button type="button" class="mobile-nav__close" data-nav-close>
+            <span class="visually-hidden">Close navigation</span>
+            <span class="mobile-nav__close-icon" aria-hidden="true">
+              <span class="mobile-nav__close-line"></span>
+              <span class="mobile-nav__close-line"></span>
+            </span>
+          </button>
+        </div>
+        <nav id="topbar-navigation" class="topbar__links" data-nav-links>
+              <a href="/route-finder.html">Route Finder</a>
+              <a href="/route-adder.html" aria-current="page">Route Adder</a>
+              <a href="/delivery.html">Delivery</a>
+              <a href="/community.html">Community</a>
+              <a href="/registration.html">Registration</a>
+              <a href="/about.html">About</a>
+            </nav>
+      </div>
+      <div class="mobile-nav__backdrop" data-nav-backdrop></div>
+    </div>
+  <section
+    id="saved-routes-panel"
+    class="overlay-panel route-adder-saved"
+    aria-labelledby="saved-routes-heading"
+    data-draggable-overlay
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <div class="route-adder-saved__header">
+      <h2 id="saved-routes-heading">Saved routes</h2>
+      <button type="button" class="link-button" data-saved-routes-refresh>Refresh</button>
+    </div>
+    <p class="route-adder-saved__intro">
+      Clean up old corridors from the system. Pick a saved route in the tools dropdown when it no longer reflects
+      real-world operations.
+    </p>
+    <ul
+      id="saved-routes-list"
+      class="route-adder-saved__list"
+      data-saved-routes-list
+      aria-live="polite"
+      aria-busy="false"
+    ></ul>
+    <p
+      id="saved-routes-feedback"
+      class="route-adder-saved__feedback"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></p>
+  </section>
+  <section
+    id="editor-tools"
+    class="overlay-panel route-editor-panel"
+    aria-labelledby="editor-tools-heading"
+    data-draggable-overlay
+    data-overlay-label="Route editing tools"
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <header class="route-editor-panel__header">
+      <h2 id="editor-tools-heading">Route editing tools</h2>
+      <p id="editor-status" class="route-editor-panel__status" role="status" aria-live="polite">
+        Select "Draw" to start plotting a new taxi route, and select at least two points along the path you want to place a
+        route onto to begin. One segment is added to your route per 'click' along the path.
+      </p>
+    </header>
+    <div class="route-editor-panel__actions" role="group" aria-label="Editing commands">
+      <button type="button" data-editor-action="draw">Draw</button>
+      <button type="button" data-editor-action="snap">Snap to Road</button>
+      <button type="button" data-editor-action="edit">Edit segment</button>
+      <button type="button" data-editor-action="undo" class="secondary">Undo</button>
+      <button type="button" data-editor-action="redo" class="secondary">Redo</button>
+      <button type="button" data-editor-action="save">Save</button>
+      <button type="button" data-editor-action="exit" class="secondary">Exit editing</button>
+    </div>
+    <div class="route-editor-panel__delete">
+      <label for="editor-delete-select">Remove a saved route</label>
+      <select id="editor-delete-select" data-route-delete-select>
+        <option value="">No saved routes available</option>
+      </select>
+      <p class="route-editor-panel__delete-hint">Selecting a route removes it from the shared directory immediately.</p>
+    </div>
+  </section>
+  <section
+    id="route-save-dialog"
+    class="overlay-panel route-save-dialog"
+    data-draggable-overlay
+    data-overlay-label="Save route details"
+    hidden
+  >
+    <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
+    <h2>Save route details</h2>
+    <p class="route-save-dialog__intro">Complete the checklist below to add your corridor to the shared directory.</p>
+    <form class="route-save-dialog__form" data-static-form data-route-save-form>
+      <ol class="route-save-dialog__list">
+        <li>
+          <label for="route-save-point-a">Route point A name</label>
+          <input
+            id="route-save-point-a"
+            type="text"
+            name="pointA"
+            placeholder="e.g. Bree Taxi Rank"
+            required
+            data-route-save-point-a
+          />
+        </li>
+        <li>
+          <label for="route-save-point-b">Route point B name</label>
+          <input
+            id="route-save-point-b"
+            type="text"
+            name="pointB"
+            placeholder="e.g. Sandton Gautrain"
+            required
+            data-route-save-point-b
+          />
+        </li>
+        <li>
+          <label for="route-save-notes">Notes and comments (optional)</label>
+          <textarea
+            id="route-save-notes"
+            name="notes"
+            rows="3"
+            placeholder="Share any timing, safety or transfer tips commuters should know"
+            data-route-save-notes
+          ></textarea>
+        </li>
+        <li class="route-save-dialog__contributor" data-route-save-contributor>
+          <span class="route-save-dialog__contributor-heading">Registered contributor</span>
+          <p class="route-save-dialog__contributor-line">
+            <strong>Username:</strong>
+            <span data-route-save-username-display>—</span>
+          </p>
+          <p class="route-save-dialog__contributor-line">
+            <strong>Home town:</strong>
+            <span data-route-save-hometown-display>—</span>
+          </p>
+          <p class="route-save-dialog__contributor-hint">
+            Update your account profile to change these details.
+          </p>
+        </li>
+        <li>
+          <label for="route-save-minfare">Minimum fare price (ZAR)</label>
+          <input
+            id="route-save-minfare"
+            type="number"
+            name="fareMin"
+            min="0"
+            step="0.5"
+            required
+            data-route-save-fare-min
+          />
+        </li>
+        <li>
+          <label for="route-save-maxfare">Maximum fare price (ZAR)</label>
+          <input
+            id="route-save-maxfare"
+            type="number"
+            name="fareMax"
+            min="0"
+            step="0.5"
+            required
+            data-route-save-fare-max
+          />
+        </li>
+      </ol>
+      <div class="route-save-dialog__actions">
+        <button type="submit" class="cta">Save route</button>
+        <button type="button" class="cta secondary" data-route-save-cancel>Cancel</button>
+      </div>
+      <p class="route-save-dialog__feedback" data-route-save-feedback role="status" aria-live="polite"></p>
+    </form>
+  </section>
   <div id="map"></div>
-
 </body>
 </html>
