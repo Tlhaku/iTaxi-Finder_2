@@ -18,6 +18,7 @@ const routes = [
     notes: 'Peak-hour taxis run every 10 minutes. Expect light traffic after 19:00.',
     fare: { min: 10, max: 15, currency: 'ZAR' },
     gesture: 'raise hand',
+    mode: 'taxi',
     stops: [{ name: 'Stop A', lat: -26.2041, lng: 28.0473 }],
     frequencyPerHour: 5,
     path: [],

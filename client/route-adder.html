@@ -9,7 +9,7 @@
 </head>
 <body class="page map-background page-route-adder">
     <div id="topbar" data-nav-open="false">
-      <a href="/" class="topbar__brand">iTaxi-Finder</a>
+      <a href="/" class="topbar__brand">RideFinder</a>
       <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
       <span class="topbar__menu-icon" aria-hidden="true">
         <span class="topbar__menu-line"></span>
@@ -53,7 +53,7 @@
     </div>
     <p class="route-adder-saved__intro">
       Clean up old corridors from the system. Pick a saved route in the tools dropdown when it no longer reflects
-      real-world operations.
+      real-world taxi, bus, or rail operations.
     </p>
     <ul
       id="saved-routes-list"
@@ -81,8 +81,8 @@
     <header class="route-editor-panel__header">
       <h2 id="editor-tools-heading">Route editing tools</h2>
       <p id="editor-status" class="route-editor-panel__status" role="status" aria-live="polite">
-        Select "Draw" to start plotting a new taxi route, and select at least two points along the path you want to place a
-        route onto to begin. One segment is added to your route per 'click' along the path.
+        Select "Draw" to start plotting a new route for taxis, buses, or trains, and select at least two points along the
+        path you want to place a route onto to begin. One segment is added to your route per 'click' along the path.
       </p>
     </header>
     <div class="route-editor-panel__actions" role="group" aria-label="Editing commands">
@@ -114,6 +114,20 @@
     <p class="route-save-dialog__intro">Complete the checklist below to add your corridor to the shared directory.</p>
     <form class="route-save-dialog__form" data-static-form data-route-save-form>
       <ol class="route-save-dialog__list">
+        <li>
+          <label for="route-save-mode">Mode of transport</label>
+          <select
+            id="route-save-mode"
+            name="mode"
+            required
+            data-route-save-mode
+          >
+            <option value="">Select a mode</option>
+            <option value="taxi">Taxi (10-16 seater)</option>
+            <option value="bus">Bus</option>
+            <option value="train">Train</option>
+          </select>
+        </li>
         <li>
           <label for="route-save-point-a">Route point A name</label>
           <input

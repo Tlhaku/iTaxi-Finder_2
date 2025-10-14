@@ -9,7 +9,7 @@
 </head>
 <body class="page map-background page-admin-route-finder">
     <div id="topbar" data-nav-open="false">
-      <a href="/" class="topbar__brand">iTaxi-Finder</a>
+      <a href="/" class="topbar__brand">RideFinder</a>
       <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
       <span class="topbar__menu-icon" aria-hidden="true">
         <span class="topbar__menu-line"></span>
@@ -49,13 +49,13 @@
     <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
     <h1 id="admin-panel-heading">Admin Route Finder</h1>
     <p class="admin-panel__intro">
-      Monitor the live visibility of your registered drivers and taxis. Drivers can opt-in to share their current location and
-      taxi owners can refresh fleet positions as vehicles move along their routes.
+      Monitor the live visibility of your registered drivers, conductors, and vehicles. Team members can opt-in to share their
+      current location and fleet leads can refresh positions as vehicles move along their routes.
     </p>
     <section class="admin-panel__section" aria-labelledby="admin-driver-heading">
-      <h2 id="admin-driver-heading">Taxi driver visibility</h2>
+      <h2 id="admin-driver-heading">Driver and conductor visibility</h2>
       <p class="admin-panel__status" data-driver-status>
-        Register as a taxi driver to enable your live location on the Admin Route Finder.
+        Register as a driver or train conductor to enable your live location on the Admin Route Finder.
       </p>
       <div class="admin-panel__actions">
         <button type="button" class="cta" data-driver-enable>Enable live location</button>
@@ -76,12 +76,12 @@
     <section class="admin-panel__section" aria-labelledby="admin-owner-heading">
       <h2 id="admin-owner-heading">Fleet overview</h2>
       <p class="admin-panel__status" data-owner-status>
-        Register as a taxi owner and capture your fleet details to manage their live map positions here.
+        Register as a fleet owner or manager and capture your vehicle details to manage their live map positions here.
       </p>
       <div class="admin-feedback" data-owner-feedback aria-live="polite"></div>
       <div class="admin-taxi-list" data-owner-taxi-list hidden></div>
       <p class="admin-empty-state" data-owner-empty hidden>
-        No taxis registered yet. Add your vehicles on the registration page to begin tracking.
+        No vehicles registered yet. Add your fleet on the registration page to begin tracking.
       </p>
     </section>
   </section>

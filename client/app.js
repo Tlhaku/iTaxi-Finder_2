@@ -19,11 +19,38 @@ const ROLE_LABELS = Object.freeze({
   'taxi-manager': 'Taxi Manager',
   'taxi-owner': 'Taxi Owner',
   'taxi-rider': 'Taxi Rider (Commuter)',
+  'bus-manager': 'Bus Manager',
+  'bus-owner': 'Bus Owner',
+  'bus-rider': 'Bus Rider (Commuter)',
+  'train-conductor': 'Train Conductor',
+  'train-rider': 'Train Rider (Commuter)',
   'rank-manager': 'Rank Manager',
   collector: 'Collector',
   'spaza-owner': 'Spaza Owner',
   'monthly-subscriber': 'Monthly Subscriber',
 });
+
+const DEFAULT_ROUTE_MODE = 'taxi';
+const ROUTE_MODE_LABELS = Object.freeze({
+  taxi: 'Taxi (10-16 seater)',
+  bus: 'Bus',
+  train: 'Train',
+});
+const ROUTE_MODE_VALUES = Object.freeze(Object.keys(ROUTE_MODE_LABELS));
+
+function normalizeRouteMode(value, fallback = DEFAULT_ROUTE_MODE) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (ROUTE_MODE_VALUES.includes(normalized)) {
+    return normalized;
+  }
+  const fallbackNormalized = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
+  return ROUTE_MODE_VALUES.includes(fallbackNormalized) ? fallbackNormalized : '';
+}
+
+function getRouteModeLabel(mode) {
+  const key = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+  return ROUTE_MODE_LABELS[key] || ROUTE_MODE_LABELS[DEFAULT_ROUTE_MODE];
+}
 
 function formatRoleSummary(roles, fallback = 'account') {
   if (!Array.isArray(roles) || roles.length === 0) {
@@ -328,7 +355,7 @@ function requestCurrentPosition() {
 function enableDriverLiveLocation() {
   const profile = getDriverProfile();
   if (!profile) {
-    return Promise.reject(new Error('Register as a taxi manager before enabling live location.'));
+    return Promise.reject(new Error('Register as a transport manager before enabling live location.'));
   }
   return requestCurrentPosition().then(location => {
     const updated = { ...profile, sharingEnabled: true, lastKnownLocation: location };
@@ -340,7 +367,7 @@ function enableDriverLiveLocation() {
 function disableDriverLiveLocation() {
   const profile = getDriverProfile();
   if (!profile) {
-    return Promise.reject(new Error('Register as a taxi manager before disabling live location.'));
+    return Promise.reject(new Error('Register as a transport manager before disabling live location.'));
   }
   const updated = { ...profile, sharingEnabled: false };
   setDriverProfile(updated);
@@ -350,7 +377,7 @@ function disableDriverLiveLocation() {
 function refreshDriverLocation() {
   const profile = getDriverProfile();
   if (!profile) {
-    return Promise.reject(new Error('Register as a taxi manager before refreshing your location.'));
+    return Promise.reject(new Error('Register as a transport manager before refreshing your location.'));
   }
   if (!profile.sharingEnabled) {
     return Promise.reject(new Error('Enable live location before refreshing your position.'));
@@ -365,11 +392,11 @@ function refreshDriverLocation() {
 function updateOwnerTaxiLocation(taxiId) {
   const owner = getOwnerProfile();
   if (!owner || !Array.isArray(owner.taxis)) {
-    return Promise.reject(new Error('Register your taxis before updating their locations.'));
+    return Promise.reject(new Error('Register your vehicles before updating their locations.'));
   }
   const index = owner.taxis.findIndex(taxi => taxi.id === taxiId);
   if (index === -1) {
-    return Promise.reject(new Error('Taxi not found. Refresh the Admin Route Finder and try again.'));
+    return Promise.reject(new Error('Vehicle not found. Refresh the Admin Route Finder and try again.'));
   }
   return requestCurrentPosition().then(location => {
     const updatedTaxi = { ...owner.taxis[index], lastKnownLocation: location };
@@ -1013,7 +1040,7 @@ function updateAccountDropdown(session = getAuthSession()) {
     if (homeTown) {
       summaryText = summaryText ? `${summaryText} · ${homeTown}` : homeTown;
     }
-    summary.textContent = summaryText || 'Signed in to iTaxi-Finder.';
+    summary.textContent = summaryText || 'Signed in to RideFinder.';
 
     if (detailsList && detailFields) {
       detailsList.hidden = false;
@@ -1044,7 +1071,7 @@ function updateAccountDropdown(session = getAuthSession()) {
     }
   } else {
     label.textContent = 'Account';
-    summary.textContent = 'Sign in to manage your taxi network profile.';
+    summary.textContent = 'Sign in to manage your transport network profile.';
     if (detailsList) {
       detailsList.hidden = true;
     }
@@ -1096,7 +1123,7 @@ function setupAccountDropdown() {
 
   const summary = document.createElement('p');
   summary.className = 'topbar__account-summary';
-  summary.textContent = 'Sign in to manage your taxi network profile.';
+  summary.textContent = 'Sign in to manage your transport network profile.';
 
   const detailsList = document.createElement('dl');
   detailsList.className = 'topbar__account-details';
@@ -1715,6 +1742,7 @@ function setupRouteSaveDialog() {
     cancelButton,
     feedback,
     inputs: {
+      mode: dialog.querySelector('[data-route-save-mode]'),
       pointA: dialog.querySelector('[data-route-save-point-a]'),
       pointB: dialog.querySelector('[data-route-save-point-b]'),
       notes: dialog.querySelector('[data-route-save-notes]'),
@@ -1768,6 +1796,8 @@ function setupRouteSaveDialog() {
       event.preventDefault();
       if (!routeSaveDialogState) return;
       const { inputs } = routeSaveDialogState;
+      const modeRaw = inputs.mode ? inputs.mode.value.trim().toLowerCase() : '';
+      const mode = normalizeRouteMode(modeRaw, '');
       const pointA = inputs.pointA ? inputs.pointA.value.trim() : '';
       const pointB = inputs.pointB ? inputs.pointB.value.trim() : '';
       const notes = inputs.notes ? inputs.notes.value.trim() : '';
@@ -1776,6 +1806,12 @@ function setupRouteSaveDialog() {
       const homeTown = typeof contributor.homeTown === 'string' ? contributor.homeTown.trim() : '';
       const fareMinValueRaw = inputs.fareMin ? inputs.fareMin.value.trim() : '';
       const fareMaxValueRaw = inputs.fareMax ? inputs.fareMax.value.trim() : '';
+
+      if (!mode) {
+        showFeedback('Select a transport mode before saving.', true);
+        if (inputs.mode) inputs.mode.focus();
+        return;
+      }
 
       if (!pointA) {
         showFeedback('Provide a name for route point A before saving.', true);
@@ -1814,6 +1850,7 @@ function setupRouteSaveDialog() {
       }
 
       resolveDialog({
+        mode,
         pointAName: pointA,
         pointBName: pointB,
         username,
@@ -1842,6 +1879,7 @@ function openRouteSaveDialog(defaults = {}) {
   if (!state) return Promise.resolve(null);
 
   const normalized = {
+    mode: normalizeRouteMode(defaults.mode, DEFAULT_ROUTE_MODE),
     pointAName: typeof defaults.pointAName === 'string' ? defaults.pointAName.trim() : '',
     pointBName: typeof defaults.pointBName === 'string' ? defaults.pointBName.trim() : '',
     notes: typeof defaults.notes === 'string' ? defaults.notes.trim() : '',
@@ -1862,6 +1900,7 @@ function openRouteSaveDialog(defaults = {}) {
   if (state.inputs.pointA) state.inputs.pointA.value = normalized.pointAName;
   if (state.inputs.pointB) state.inputs.pointB.value = normalized.pointBName;
   if (state.inputs.notes) state.inputs.notes.value = normalized.notes;
+  if (state.inputs.mode) state.inputs.mode.value = normalized.mode;
   if (state.inputs.fareMin) state.inputs.fareMin.value = normalized.fareMin === '' ? '' : normalized.fareMin;
   if (state.inputs.fareMax) state.inputs.fareMax.value = normalized.fareMax === '' ? '' : normalized.fareMax;
 
@@ -2358,7 +2397,7 @@ function handleRouteEditorAction(action) {
     if (action === 'draw') {
       const session = getAuthSession();
       if (!session || !session.user) {
-        setEditorStatus(routeEditorState, 'Sign in to draw and save taxi routes. Use the account menu above to log in.');
+        setEditorStatus(routeEditorState, 'Sign in to draw and save transport routes. Use the account menu above to log in.');
         updateEditorControls(routeEditorState);
         if (!openAccountMenu({ focus: 'signin', redirect: false })) {
           window.location.href = '/registration.html#login';
@@ -2397,7 +2436,7 @@ function startDrawingRoute(state) {
   initialiseRouteHistory(state);
   updateDraftPolyline(state);
   updateSnappedPolyline(state);
-  setEditorStatus(state, 'Drawing mode enabled. Click along the taxi corridor to sketch your route.');
+  setEditorStatus(state, 'Drawing mode enabled. Click along the transport corridor to sketch your route.');
   updateEditorControls(state);
 }
 
@@ -2675,6 +2714,7 @@ function loadRouteForEditing(route) {
   const fare = route.fare || {};
 
   routeEditorState.lastSaveDetails = {
+    mode: normalizeRouteMode(route.mode, DEFAULT_ROUTE_MODE),
     pointAName: firstStop && typeof firstStop.name === 'string' ? firstStop.name : '',
     pointBName:
       lastStop && typeof lastStop.name === 'string' ? lastStop.name : firstStop && firstStop.name ? firstStop.name : '',
@@ -2715,7 +2755,7 @@ async function saveCurrentRoute(state) {
   const session = getAuthSession();
   const sessionUser = session && session.user ? session.user : null;
   if (!sessionUser) {
-    setEditorStatus(state, 'Sign in to save taxi routes. Use the account menu above to log in.');
+    setEditorStatus(state, 'Sign in to save transport routes. Use the account menu above to log in.');
     if (!openAccountMenu({ focus: 'signin', redirect: false })) {
       window.location.href = '/registration.html#login';
     }
@@ -2742,6 +2782,7 @@ async function saveCurrentRoute(state) {
 
   const previousDetails = state.lastSaveDetails || {};
   const dialogDefaults = {
+    mode: previousDetails.mode || DEFAULT_ROUTE_MODE,
     pointAName: previousDetails.pointAName || '',
     pointBName: previousDetails.pointBName || '',
     notes: previousDetails.notes || '',
@@ -2758,6 +2799,7 @@ async function saveCurrentRoute(state) {
 
   state.contributor = { username: details.username, homeTown: details.homeTown };
   state.lastSaveDetails = {
+    mode: details.mode,
     pointAName: details.pointAName,
     pointBName: details.pointBName,
     notes: details.notes || '',
@@ -2766,7 +2808,7 @@ async function saveCurrentRoute(state) {
   };
 
   const routeNameParts = [details.pointAName, details.pointBName].filter(part => part && part.trim());
-  const generatedName = routeNameParts.length ? routeNameParts.join(' – ') : 'New Taxi Route';
+  const generatedName = routeNameParts.length ? routeNameParts.join(' – ') : 'New Route';
 
   const contributorNameParts = [
     typeof sessionUser.firstName === 'string' ? sessionUser.firstName.trim() : '',
@@ -2787,6 +2829,7 @@ async function saveCurrentRoute(state) {
       max: Number.isFinite(details.fareMax) ? details.fareMax : Number.isFinite(details.fareMin) ? details.fareMin : 0,
       currency: 'ZAR',
     },
+    mode: details.mode,
     stops: buildStopsFromPath(workingPath, {
       startName: details.pointAName,
       endName: details.pointBName,
@@ -3105,19 +3148,19 @@ function setupRegistration() {
     fieldset.dataset.taxiId = initial.id || generateId('taxi');
 
     const legend = document.createElement('legend');
-    legend.textContent = 'Taxi';
+    legend.textContent = 'Vehicle';
     fieldset.appendChild(legend);
 
     const header = document.createElement('div');
     header.className = 'registration-owner-taxi__header';
     const title = document.createElement('h3');
-    title.textContent = initial.name || 'Taxi';
+    title.textContent = initial.name || 'Vehicle';
     header.appendChild(title);
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
     removeButton.className = 'registration-owner-taxi__remove';
-    removeButton.setAttribute('aria-label', 'Remove taxi');
+    removeButton.setAttribute('aria-label', 'Remove vehicle');
     removeButton.textContent = '×';
     removeButton.addEventListener('click', () => {
       fieldset.remove();
@@ -3128,7 +3171,7 @@ function setupRegistration() {
     fieldset.appendChild(header);
 
     const nameLabel = document.createElement('label');
-    nameLabel.textContent = 'Taxi name or nickname';
+    nameLabel.textContent = 'Vehicle name or nickname';
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.name = 'taxi-name';
@@ -3158,12 +3201,12 @@ function setupRegistration() {
       const title = fieldset.querySelector('.registration-owner-taxi__header h3');
       const nameInput = fieldset.querySelector('input[name="taxi-name"]');
       if (title) {
-        const fallback = `Taxi ${index + 1}`;
+        const fallback = `Vehicle ${index + 1}`;
         title.textContent = nameInput && nameInput.value.trim() ? nameInput.value.trim() : fallback;
       }
       const legend = fieldset.querySelector('legend');
       if (legend) {
-        legend.textContent = `Taxi ${index + 1}`;
+        legend.textContent = `Vehicle ${index + 1}`;
       }
     });
   }
@@ -3219,7 +3262,7 @@ function setupRegistration() {
       const note = document.createElement('div');
       note.className = 'registration-driver-note';
       note.innerHTML =
-        '<strong>Map your fleet</strong>List each taxi you manage. Update live positions later from the Admin Route Finder.';
+        '<strong>Map your fleet</strong>List each vehicle you manage. Update live positions later from the Admin Route Finder.';
       dynamicContainer.appendChild(note);
 
       const list = document.createElement('div');
@@ -3236,7 +3279,7 @@ function setupRegistration() {
       const addButton = document.createElement('button');
       addButton.type = 'button';
       addButton.className = 'cta secondary';
-      addButton.textContent = 'Add another taxi';
+      addButton.textContent = 'Add another vehicle';
       addButton.addEventListener('click', () => {
         list.appendChild(createOwnerTaxiFieldset());
         refreshOwnerTaxiTitles();
@@ -3267,7 +3310,7 @@ function setupRegistration() {
     const displayName = typeof profile.displayName === 'string' && profile.displayName.trim()
       ? profile.displayName.trim()
       : '';
-    const identity = username || displayName || 'Taxi manager';
+    const identity = username || displayName || 'Transport manager';
     const resolvedRoles = Array.isArray(selectedRoles)
       ? selectedRoles
       : Array.isArray(profile.roles)
@@ -3279,7 +3322,7 @@ function setupRegistration() {
       : `Thanks ${identity}! Enable live location to appear on the Admin Route Finder.`;
     let message = messageBase;
     if (rolesSet.has('taxi-owner')) {
-      message = `${messageBase} Capture your fleet below to surface every taxi on the admin map.`;
+      message = `${messageBase} Capture your fleet below to surface every vehicle on the admin map.`;
     } else if (rolesSet.size > 1) {
       message = `${messageBase} Your ${formatRoleSummary(Array.from(rolesSet), 'account')} workspace is ready.`;
     }
@@ -3329,7 +3372,7 @@ function setupRegistration() {
     const displayName = typeof profile.displayName === 'string' && profile.displayName.trim()
       ? profile.displayName.trim()
       : '';
-    const identity = username || displayName || 'Taxi owner';
+    const identity = username || displayName || 'Fleet owner';
     const resolvedRoles = Array.isArray(selectedRoles)
       ? selectedRoles
       : Array.isArray(profile.roles)
@@ -3338,10 +3381,10 @@ function setupRegistration() {
     const rolesSet = new Set(resolvedRoles);
     let message =
       total > 0
-        ? `${identity}, ${total} taxi${total === 1 ? '' : 's'} are ready to display on the Admin Route Finder.`
-        : `${identity}, your profile is saved. Add taxis to manage their live visibility.`;
+        ? `${identity}, ${total} vehicle${total === 1 ? '' : 's'} are ready to display on the Admin Route Finder.`
+        : `${identity}, your profile is saved. Add vehicles to manage their live visibility.`;
     if (rolesSet.has('taxi-manager')) {
-      message = `${message} Enable the taxi manager tools when you are on the road to broadcast your live position.`;
+      message = `${message} Enable the transport manager tools when you are on the road to broadcast your live position.`;
     } else if (rolesSet.size > 1) {
       message = `${message} Your ${formatRoleSummary(Array.from(rolesSet), 'account')} profile is active.`;
     }
@@ -3505,7 +3548,7 @@ function setupRegistration() {
       if (selectedRoles.includes('taxi-owner')) {
         ownerTaxis = collectOwnerTaxiEntries();
         if (!ownerTaxis.length) {
-          showError('Add at least one taxi so that your fleet can appear on the Admin Route Finder.');
+          showError('Add at least one vehicle so that your fleet can appear on the Admin Route Finder.');
           return;
         }
         metadata.taxis = ownerTaxis;
@@ -3999,6 +4042,7 @@ function normalizeRouteRecord(rawRoute) {
     ? rawRoute.pointBName.trim()
     : fallbackPointB;
   const notes = typeof rawRoute.notes === 'string' ? rawRoute.notes.trim() : '';
+  const mode = normalizeRouteMode(rawRoute.mode, DEFAULT_ROUTE_MODE);
 
   return {
     ...rawRoute,
@@ -4012,6 +4056,7 @@ function normalizeRouteRecord(rawRoute) {
     pointAName,
     pointBName,
     notes,
+    mode,
     fare,
     frequencyPerHour: Number.isFinite(frequency) ? frequency : null,
     nameLower: name.toLowerCase(),
@@ -4116,6 +4161,7 @@ function renderRouteDetails(route, options = {}) {
   const gestureText = route.gesture ? escapeHtml(route.gesture) : 'Not specified';
   const stopsMarkup = buildStopsMarkup(route.stops);
   const variationsCount = Array.isArray(route.variations) ? route.variations.length : 0;
+  const modeLabel = escapeHtml(getRouteModeLabel(route.mode));
   const startNameRaw = typeof route.pointAName === 'string' && route.pointAName.trim()
     ? route.pointAName.trim()
     : Array.isArray(route.stops) && route.stops.length
@@ -4156,6 +4202,7 @@ function renderRouteDetails(route, options = {}) {
     <ul class="route-details__meta">
       <li><strong>Province:</strong> ${escapeHtml(route.province || 'Unspecified')}</li>
       <li><strong>City:</strong> ${escapeHtml(route.city || 'Unspecified')}</li>
+      <li><strong>Mode:</strong> ${modeLabel}</li>
       <li><strong>Route point A:</strong> ${pointAValue}</li>
       <li><strong>Route point B:</strong> ${pointBValue}</li>
       <li><strong>Fare:</strong> ${fareText}</li>
@@ -4519,7 +4566,7 @@ function renderAdminDriverSection() {
 
   if (!profile) {
     if (driverStatus) {
-    driverStatus.textContent = 'Register as a taxi manager to manage live visibility here.';
+    driverStatus.textContent = 'Register as a transport manager to manage live visibility here.';
     }
     if (driverEnableButton) {
       driverEnableButton.disabled = true;
@@ -4536,8 +4583,8 @@ function renderAdminDriverSection() {
 
   if (driverStatus) {
     driverStatus.textContent = profile.sharingEnabled
-      ? `${profile.name || 'Taxi manager'} is broadcasting a live location. Refresh to capture the latest point.`
-      : `${profile.name || 'Taxi manager'} is registered but live location is disabled.`;
+      ? `${profile.name || 'Transport manager'} is broadcasting a live location. Refresh to capture the latest point.`
+      : `${profile.name || 'Transport manager'} is registered but live location is disabled.`;
   }
 
   if (driverEnableButton) {
@@ -4573,7 +4620,7 @@ function handleDriverEnableToggle() {
   const profile = getDriverProfile();
   if (!profile) {
     if (driverFeedback) {
-      driverFeedback.textContent = 'No taxi manager registration found. Submit the manager form first.';
+      driverFeedback.textContent = 'No transport manager registration found. Submit the manager form first.';
       driverFeedback.classList.add('error');
     }
     return;
@@ -4634,7 +4681,7 @@ function renderAdminOwnerSection() {
 
   if (!profile) {
     if (ownerStatus) {
-      ownerStatus.textContent = 'Register as a taxi owner to capture your fleet and track live positions.';
+      ownerStatus.textContent = 'Register as a fleet owner to capture your vehicles and track live positions.';
     }
     if (ownerList) {
       ownerList.innerHTML = '';
@@ -4654,8 +4701,8 @@ function renderAdminOwnerSection() {
   if (ownerStatus) {
     ownerStatus.textContent =
       total > 0
-        ? `${profile.name || 'Taxi owner'} has ${total} taxi${total === 1 ? '' : 's'} registered.`
-        : `${profile.name || 'Taxi owner'} has no taxis captured yet.`;
+        ? `${profile.name || 'Fleet owner'} has ${total} vehicle${total === 1 ? '' : 's'} registered.`
+        : `${profile.name || 'Fleet owner'} has no vehicles captured yet.`;
   }
 
   if (ownerList) {
@@ -4667,7 +4714,7 @@ function renderAdminOwnerSection() {
         card.className = 'admin-taxi';
 
         const title = document.createElement('h3');
-        title.textContent = taxi.name || 'Taxi';
+        title.textContent = taxi.name || 'Vehicle';
         card.appendChild(title);
 
         const meta = document.createElement('p');
@@ -4715,20 +4762,20 @@ function handleOwnerTaxiUpdate(taxiId) {
   if (!adminRouteFinderState) return;
   const { ownerFeedback } = adminRouteFinderState;
   if (ownerFeedback) {
-    ownerFeedback.textContent = 'Capturing taxi location...';
+    ownerFeedback.textContent = 'Capturing vehicle location...';
     ownerFeedback.classList.remove('error');
   }
 
   updateOwnerTaxiLocation(taxiId)
     .then(taxi => {
       if (ownerFeedback) {
-        ownerFeedback.textContent = `${taxi.name || 'Taxi'} location updated.`;
+        ownerFeedback.textContent = `${taxi.name || 'Vehicle'} location updated.`;
         ownerFeedback.classList.remove('error');
       }
     })
     .catch(error => {
       if (ownerFeedback) {
-        ownerFeedback.textContent = error.message || 'Unable to update taxi location.';
+        ownerFeedback.textContent = error.message || 'Unable to update vehicle location.';
         ownerFeedback.classList.add('error');
       }
     });
@@ -4752,7 +4799,7 @@ function updateAdminMarkers() {
       const driverMarker = new google.maps.Marker({
         map,
         position: { lat, lng },
-        title: `${driverProfile.name || 'Taxi manager'} (live)`,
+        title: `${driverProfile.name || 'Transport manager'} (live)`,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 9,
@@ -4775,7 +4822,7 @@ function updateAdminMarkers() {
       const taxiMarker = new google.maps.Marker({
         map,
         position: { lat, lng },
-        title: `${taxi.name || 'Taxi'}${taxi.registration ? ` (${taxi.registration})` : ''}`.trim(),
+        title: `${taxi.name || 'Vehicle'}${taxi.registration ? ` (${taxi.registration})` : ''}`.trim(),
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 8,

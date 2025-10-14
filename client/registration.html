@@ -9,7 +9,7 @@
 </head>
 <body class="page map-background page-registration">
     <div id="topbar" data-nav-open="false">
-      <a href="/" class="topbar__brand">iTaxi-Finder</a>
+      <a href="/" class="topbar__brand">RideFinder</a>
       <button type="button" class="topbar__menu" aria-expanded="false" aria-controls="topbar-navigation" data-nav-toggle>
       <span class="topbar__menu-icon" aria-hidden="true">
         <span class="topbar__menu-line"></span>
@@ -46,9 +46,10 @@
     data-draggable-overlay
   >
     <div class="overlay-drag-handle overlay-drag-handle--floating" data-drag-handle aria-hidden="true"></div>
-    <h1 id="registration-heading">Join the iTaxi-Finder network</h1>
-    <p>Register your role to unlock tools tailored for collectors, drivers, depot owners, and partners. We capture just enough
-      information to verify your business, route alignment, and preferred contact channels before activating your workspace.</p>
+    <h1 id="registration-heading">Join the RideFinder network</h1>
+    <p>Register your role to unlock tools tailored for collectors, drivers, depot owners, conductors, and partners across taxi,
+      bus, and rail services. We capture just enough information to verify your business, route alignment, and preferred
+      contact channels before activating your workspace.</p>
     <form id="login" class="registration-login" data-static-form data-login-form>
       <fieldset>
         <legend>Already registered? Sign in</legend>
@@ -117,6 +118,11 @@
           <label><input type="checkbox" name="roles" value="taxi-manager" data-role-input /> Taxi Manager</label>
           <label><input type="checkbox" name="roles" value="taxi-owner" data-role-input /> Taxi Owner</label>
           <label><input type="checkbox" name="roles" value="taxi-rider" data-role-input /> Taxi Rider (Commuter)</label>
+          <label><input type="checkbox" name="roles" value="bus-manager" data-role-input /> Bus Manager</label>
+          <label><input type="checkbox" name="roles" value="bus-owner" data-role-input /> Bus Owner</label>
+          <label><input type="checkbox" name="roles" value="bus-rider" data-role-input /> Bus Rider (Commuter)</label>
+          <label><input type="checkbox" name="roles" value="train-conductor" data-role-input /> Train Conductor</label>
+          <label><input type="checkbox" name="roles" value="train-rider" data-role-input /> Train Rider (Commuter)</label>
           <label><input type="checkbox" name="roles" value="rank-manager" data-role-input /> Rank Manager</label>
           <label><input type="checkbox" name="roles" value="collector" data-role-input /> Collector</label>
           <label><input type="checkbox" name="roles" value="spaza-owner" data-role-input /> Spaza Owner</label>

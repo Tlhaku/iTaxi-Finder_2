@@ -1,6 +1,6 @@
-# iTaxi-Finder
+# RideFinder
 
-Prototype implementation based on the iTaxi-Finder SRS. The project includes a minimal Node.js server and static frontend pages that display a Google Map and basic navigation.
+Prototype implementation based on the RideFinder SRS. The project includes a minimal Node.js server and static frontend pages that display a Google Map and basic navigation for taxi, bus, and rail route discovery.
 
 ## Prerequisites
 - Node.js >= 18
