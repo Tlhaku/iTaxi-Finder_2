@@ -1,7 +1,7 @@
 {
   "name": "itaxi-finder-client",
   "version": "1.0.0",
-  "description": "Frontend for iTaxi-Finder",
+  "description": "Frontend for RideFinder multimodal route discovery",
   "scripts": {
     "test": "node -e \"console.log('No tests yet')\""
   }

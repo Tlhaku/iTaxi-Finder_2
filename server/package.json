@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "iTaxi-Finder server",
+  "description": "RideFinder server",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

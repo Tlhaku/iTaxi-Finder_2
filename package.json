@@ -1,7 +1,7 @@
 {
   "name": "itaxi-finder",
   "version": "0.1.0",
-  "description": "iTaxi-Finder platform server and static client",
+  "description": "RideFinder platform server and static client",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
