@@ -1,8 +1,11 @@
 @use 'sass:color';
 
+$primary-color: #0055a4;
+$accent-color: #f9b234;
+
 :root {
-  --primary-color: #0055a4;
-  --accent-color: #f9b234;
+  --primary-color: #{$primary-color};
+  --accent-color: #{$accent-color};
   --background-color: #f5f7fb;
   --card-background: #ffffff;
   --text-color: #1c1f2e;
@@ -117,7 +120,7 @@ input, select {
   gap: 0.5rem;
   padding: 0.35rem 0.9rem;
   border-radius: 999px;
-  background: color.mix(var(--accent-color), white, 80%);
+  background: color.mix($accent-color, white, 80%);
   color: #7b4b00;
   font-weight: 600;
 }
