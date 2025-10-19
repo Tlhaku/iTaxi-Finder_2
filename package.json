@@ -1,15 +1,15 @@
 {
-  "name": "itaxi-finder",
-  "version": "0.1.0",
-  "description": "iTaxi-Finder platform server and static client",
-  "main": "server.js",
+  "name": "basagas-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BasaGas MEAN stack platform",
   "scripts": {
-    "start": "node server.js",
-    "test": "node server.js & sleep 1 && kill $! && echo 'No tests implemented'"
+    "start": "npm --prefix server run start",
+    "start:server": "npm --prefix server run start",
+    "start:client": "npm --prefix client run start",
+    "build:client": "npm --prefix client run build",
+    "test": "npm --prefix server run test"
   },
-  "keywords": [],
   "author": "",
-  "license": "MIT",
-  "type": "module"
-
+  "license": "MIT"
 }

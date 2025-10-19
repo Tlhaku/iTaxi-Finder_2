@@ -1,0 +1,83 @@
+.hero {
+  background: radial-gradient(circle at top left, rgba(0, 85, 164, 0.12), transparent 60%),
+    radial-gradient(circle at top right, rgba(249, 178, 52, 0.15), transparent 65%);
+  padding: 6rem 0;
+}
+
+.hero-grid {
+  display: grid;
+  gap: 2.5rem;
+  align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+h1 {
+  font-size: clamp(2.25rem, 4vw, 3.2rem);
+  margin-bottom: 1.25rem;
+}
+
+p {
+  color: var(--muted-text);
+  line-height: 1.7;
+}
+
+.actions {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+
+  a.primary {
+    background: linear-gradient(135deg, var(--primary-color), #003a73);
+    border-radius: 999px;
+    padding: 0.85rem 2rem;
+    color: #fff;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 12px 24px rgba(0, 85, 164, 0.2);
+  }
+
+  a.ghost {
+    border-radius: 999px;
+    border: 1px solid rgba(0, 85, 164, 0.2);
+    padding: 0.85rem 2rem;
+    font-weight: 600;
+    color: var(--primary-color);
+  }
+}
+
+.metrics {
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1rem;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+  }
+
+  span {
+    font-size: 1.35rem;
+    color: var(--accent-color);
+  }
+}
+
+.steps {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+
+  .card {
+    transition: transform 0.2s ease;
+
+    &:hover {
+      transform: translateY(-4px);
+    }
+  }
+}

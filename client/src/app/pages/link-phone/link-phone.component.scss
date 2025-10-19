@@ -1,0 +1,27 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.status {
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(220, 0, 53, 0.12);
+  color: #8f0a2c;
+
+  &.active {
+    background: rgba(0, 191, 99, 0.15);
+    color: #0d6842;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.message {
+  color: var(--muted-text);
+}

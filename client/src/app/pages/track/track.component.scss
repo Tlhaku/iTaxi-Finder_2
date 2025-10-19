@@ -1,0 +1,22 @@
+.map-card {
+  padding: 0;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.status-pill {
+  background: rgba(0, 85, 164, 0.08);
+  color: var(--text-color);
+}
+
+.status-pill .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0d9440;
+  display: inline-block;
+}
