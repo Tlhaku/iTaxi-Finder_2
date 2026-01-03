@@ -1,0 +1,7 @@
+<svg width="640" height="800" viewBox="0 0 640 800" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="800" rx="32" fill="#fef3c7"/>
+  <path d="M140 520 C220 240 420 240 500 520 Z" fill="#fff7ed" stroke="#fbbf24" stroke-width="8"/>
+  <path d="M160 340 Q320 220 480 340" fill="#fde68a" opacity="0.6"/>
+  <text x="320" y="620" font-family="'Arial', sans-serif" font-size="44" text-anchor="middle" fill="#92400e">Champagne Bloom</text>
+  <text x="320" y="668" font-family="'Arial', sans-serif" font-size="24" text-anchor="middle" fill="#b45309">Soft champagne knit</text>
+</svg>

@@ -1,0 +1,8 @@
+<svg width="640" height="800" viewBox="0 0 640 800" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="800" rx="32" fill="#fffbeb"/>
+  <path d="M200 220 Q320 160 440 220" fill="#fef3c7" stroke="#f5d399" stroke-width="6"/>
+  <path d="M150 520 C200 250 440 250 490 520 Z" fill="#fef3c7" stroke="#f8c471" stroke-width="8"/>
+  <circle cx="330" cy="360" r="28" fill="#fef9c3" stroke="#f59e0b" stroke-width="6"/>
+  <text x="320" y="620" font-family="'Arial', sans-serif" font-size="44" text-anchor="middle" fill="#92400e">Pearl Brooch</text>
+  <text x="320" y="668" font-family="'Arial', sans-serif" font-size="24" text-anchor="middle" fill="#b45309">Statement clasp poncho</text>
+</svg>

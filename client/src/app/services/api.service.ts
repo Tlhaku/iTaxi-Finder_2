@@ -33,9 +33,9 @@ export class ApiService {
     });
   }
 
-  getConfig(): Observable<{ googleMapsApiKey: string; yocoPublicKey: string }>
+  getConfig(): Observable<{ googleMapsApiKey: string; yocoPublicKey: string; paymentMethods: string[] }>
   {
-    return this.http.get<{ googleMapsApiKey: string; yocoPublicKey: string }>(`${this.baseUrl}/api/config`, {
+    return this.http.get<{ googleMapsApiKey: string; yocoPublicKey: string; paymentMethods: string[] }>(`${this.baseUrl}/api/config`, {
       withCredentials: true
     });
   }

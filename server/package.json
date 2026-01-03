@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "BasaGas platform API server",
+  "description": "Kninz knitwear storefront API server",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

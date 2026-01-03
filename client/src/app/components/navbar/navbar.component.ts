@@ -10,17 +10,17 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     <header [class.scrolled]="scrolled">
       <div class="container">
         <nav>
-          <a routerLink="/" class="brand">BasaGas</a>
+          <a routerLink="/" class="brand">Kninz Knitwear</a>
           <ul>
             <li><a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a></li>
-            <li><a routerLink="/order" routerLinkActive="active">Order</a></li>
-            <li><a routerLink="/pricing" routerLinkActive="active">Pricing</a></li>
-            <li><a routerLink="/comments" routerLinkActive="active">Visitor Comments</a></li>
+            <li><a routerLink="/order" routerLinkActive="active">Shop</a></li>
+            <li><a routerLink="/pricing" routerLinkActive="active">Collection</a></li>
+            <li><a routerLink="/comments" routerLinkActive="active">Love Notes</a></li>
             <li class="dropdown" (mouseenter)="openDropdown=true" (mouseleave)="openDropdown=false">
-              <span class="dropdown-toggle" [class.active]="isTrackActive">Track</span>
+              <span class="dropdown-toggle" [class.active]="isTrackActive">Delivery</span>
               <div class="dropdown-menu" [class.open]="openDropdown">
-                <a routerLink="/track" routerLinkActive="active">Track My Order</a>
-                <a routerLink="/track/link-phone" routerLinkActive="active">Link My Phone</a>
+                <a routerLink="/track" routerLinkActive="active">Coverage &amp; timing</a>
+                <a routerLink="/track/link-phone" routerLinkActive="active">Ride-share option</a>
               </div>
             </li>
             <li class="auth">

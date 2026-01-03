@@ -30,7 +30,13 @@ const io = new Server(server, {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret';
 const PORT = process.env.PORT || 4000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/basagas';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/kninz-store';
+
+const PRODUCT_CATALOG = {
+  poncho: { name: 'Poncho', price: 350 },
+  hat: { name: 'Hat', price: 150 },
+  scarf: { name: 'Scarf', price: 250 }
+};
 
 const liveLocations = new Map();
 const yocoTokens = [];
@@ -141,14 +147,46 @@ app.post('/api/orders', authenticate, async (req, res) => {
     if (role !== 'customer') {
       return res.status(403).json({ message: 'Only customers can place orders' });
     }
+
+    const items = (req.body.items || [])
+      .map(item => {
+        const catalogItem = PRODUCT_CATALOG[item.type];
+        if (!catalogItem || !item.quantity) return null;
+        return {
+          name: catalogItem.name,
+          type: item.type,
+          price: catalogItem.price,
+          quantity: Math.max(1, Number(item.quantity))
+        };
+      })
+      .filter(Boolean);
+
+    if (items.length === 0) {
+      return res.status(400).json({ message: 'Select at least one item before checking out.' });
+    }
+
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const delivery = {
+      recipient_name: req.body.delivery?.recipient_name,
+      email: req.body.delivery?.email,
+      phone: req.body.delivery?.phone,
+      address: req.body.delivery?.address,
+      city: req.body.delivery?.city,
+      notes: req.body.delivery?.notes,
+      ride_share: !!req.body.delivery?.ride_share,
+      payment_method: req.body.delivery?.payment_method || 'Yoco'
+    };
+
+    if (!delivery.recipient_name || !delivery.address || !delivery.email || !delivery.phone) {
+      return res.status(400).json({ message: 'Delivery contact, email, phone, and address are required.' });
+    }
+
     const order = await Order.create({
       customer_id: req.user.id,
-      pickup_address: req.body.pickup_address,
-      dropoff_address: req.body.dropoff_address,
-      cylinder_size: req.body.cylinder_size,
-      manufacturer: req.body.manufacturer,
-      contact_phone: req.body.contact_phone,
-      notes: req.body.notes,
+      items,
+      subtotal,
+      delivery,
       status: 'Pending'
     });
     res.json(order);
@@ -198,7 +236,8 @@ app.get('/api/deliverers/locations', (req, res) => {
 app.get('/api/config', (req, res) => {
   res.json({
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyCYxFkL9vcvbaFz-Ut1Lm2Vge5byodujfk',
-    yocoPublicKey: process.env.YOCO_PUBLIC_KEY || 'pk_test_placeholder'
+    yocoPublicKey: process.env.YOCO_PUBLIC_KEY || 'pk_test_placeholder',
+    paymentMethods: ['Yoco', 'PayGate', 'iKhokha']
   });
 });
 

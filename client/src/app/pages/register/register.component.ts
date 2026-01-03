@@ -13,11 +13,11 @@ import { AuthService } from '../../services/auth.service';
     <section class="page-section">
       <div class="container narrow">
         <div class="card auth-card">
-          <h2>Create your BasaGas account</h2>
+          <h2>Create your Kninz account</h2>
           <form [formGroup]="form" (ngSubmit)="submit()">
             <div class="form-grid">
               <div>
-                <label>Username</label>
+                <label>Full name</label>
                 <input type="text" formControlName="username" required>
               </div>
               <div>
@@ -27,29 +27,6 @@ import { AuthService } from '../../services/auth.service';
               <div>
                 <label>Phone</label>
                 <input type="tel" formControlName="phone" required>
-              </div>
-              <div>
-                <label>Role</label>
-                <select formControlName="role">
-                  <option value="customer">Customer</option>
-                  <option value="deliverer">Deliverer</option>
-                </select>
-              </div>
-              <div>
-                <label>Cylinder manufacturer preference</label>
-                <input type="text" formControlName="cylinder_manufacturer" placeholder="TotalGaz, Afrox, ...">
-              </div>
-              <div>
-                <label>Usual pickup address</label>
-                <input type="text" formControlName="usual_pickup_address">
-              </div>
-              <div>
-                <label>Usual drop-off address</label>
-                <input type="text" formControlName="usual_dropoff_address">
-              </div>
-              <div>
-                <label *ngIf="form.value.role === 'deliverer'">Starting point</label>
-                <input type="text" formControlName="starting_point" [placeholder]="form.value.role === 'deliverer' ? 'Where you depart from' : 'Optional'">
               </div>
               <div>
                 <label>Password</label>
@@ -75,10 +52,6 @@ export class RegisterComponent {
     email: ['', [Validators.required, Validators.email]],
     phone: ['', Validators.required],
     role: ['customer', Validators.required],
-    cylinder_manufacturer: [''],
-    usual_pickup_address: [''],
-    usual_dropoff_address: [''],
-    starting_point: [''],
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
 

@@ -2,7 +2,7 @@
   "name": "basagas-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "BasaGas MEAN stack platform",
+  "description": "Kninz knitwear storefront built on the MEAN stack",
   "scripts": {
     "start": "npm --prefix server run start",
     "start:server": "npm --prefix server run start",

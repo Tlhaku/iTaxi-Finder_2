@@ -9,12 +9,12 @@ import { CommonModule } from '@angular/common';
   template: `
     <section class="page-section">
       <div class="container">
-        <h2 class="section-title">Community feedback</h2>
+        <h2 class="section-title">Love notes from our wearers</h2>
         <p class="section-subtitle">
-          Visitor comments will appear here once we enable public reviews. Leave your email to stay in the loop.
+          We’re gathering stories as the Kninz pieces go out into the world. Watch this space for real photos and feedback.
         </p>
         <div class="card placeholder">
-          <p>No comments yet. Be the first to share your BasaGas experience.</p>
+          <p>Be the first to share how you style your Kninz poncho, scarf, or hat.</p>
         </div>
       </div>
     </section>

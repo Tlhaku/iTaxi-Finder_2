@@ -13,7 +13,7 @@ import { AuthService } from '../../services/auth.service';
     <section class="page-section">
       <div class="container narrow">
         <div class="card auth-card">
-          <h2>Login</h2>
+          <h2>Login to Kninz</h2>
           <form [formGroup]="form" (ngSubmit)="submit()">
             <label>Email</label>
             <input type="email" formControlName="email" required>
