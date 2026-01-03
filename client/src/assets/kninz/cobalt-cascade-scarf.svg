@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Cobalt Cascade Scarf">
+  <defs>
+    <linearGradient id="bg7" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e6f0ff"/>
+      <stop offset="100%" stop-color="#c9dbff"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg7)" rx="32"/>
+  <path d="M200 120c80 30 160 30 240 0 20 60 10 140-50 200-70 70-160 90-220 70-70-30-90-140-40-220 18-30 42-48 70-50z" fill="#0f4bc7" opacity="0.78"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="44" fill="#12315f">Cobalt Cascade Scarf</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#1b3f7a">Textured blue with plush loops</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#244a89">Kninz limited drop</text>
+</svg>

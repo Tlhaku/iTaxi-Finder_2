@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Cobalt Hug Poncho">
+  <defs>
+    <linearGradient id="bg8" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dfeaff"/>
+      <stop offset="100%" stop-color="#b7cbff"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg8)" rx="32"/>
+  <path d="M160 150c120 10 240 10 320 0 40 90 10 190-80 270-70 60-170 80-230 50-80-40-110-140-70-240 10-40 30-70 60-80z" fill="#1550c9" opacity="0.76"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="44" fill="#16316a">Cobalt Hug Poncho</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#1f3e7a">Plush blue wrap with roomy sleeves</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#2b4a89">Kninz limited drop</text>
+</svg>

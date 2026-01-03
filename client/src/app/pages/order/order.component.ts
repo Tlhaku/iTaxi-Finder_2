@@ -166,6 +166,87 @@ export class OrderComponent implements OnInit {
       quantity: 0
     },
     {
+      id: 'snowfall-wrap',
+      name: 'Snowfall Wrap',
+      type: 'scarf',
+      price: 250,
+      description: 'Feathery white wrap that layers over tanks or tees.',
+      image: 'assets/kninz/snowfall-wrap.svg',
+      quantity: 0
+    },
+    {
+      id: 'snowdrift-stole',
+      name: 'Snowdrift Stole',
+      type: 'scarf',
+      price: 250,
+      description: 'Long plush white stole for cozy winter mornings.',
+      image: 'assets/kninz/snowdrift-stole.svg',
+      quantity: 0
+    },
+    {
+      id: 'vanilla-loft-shawl',
+      name: 'Vanilla Loft Shawl',
+      type: 'scarf',
+      price: 250,
+      description: 'Cream triangle shawl with a lofty hand-knit texture.',
+      image: 'assets/kninz/vanilla-loft-shawl.svg',
+      quantity: 0
+    },
+    {
+      id: 'pearl-clasp-capelet',
+      name: 'Pearl Clasp Capelet',
+      type: 'scarf',
+      price: 250,
+      description: 'Chunky cream wrap that closes with a vintage-inspired clasp.',
+      image: 'assets/kninz/pearl-clasp-capelet.svg',
+      quantity: 0
+    },
+    {
+      id: 'sapphire-fringe-wrap',
+      name: 'Sapphire Fringe Wrap',
+      type: 'scarf',
+      price: 250,
+      description: 'Bold cobalt wrap with playful fringe and airy stitches.',
+      image: 'assets/kninz/sapphire-fringe-wrap.svg',
+      quantity: 0
+    },
+    {
+      id: 'heather-cloud-cowl',
+      name: 'Heather Cloud Cowl',
+      type: 'scarf',
+      price: 250,
+      description: 'Plush heathered cowl with frosted texture at the edge.',
+      image: 'assets/kninz/heather-cloud-cowl.svg',
+      quantity: 0
+    },
+    {
+      id: 'cobalt-cascade-scarf',
+      name: 'Cobalt Cascade Scarf',
+      type: 'scarf',
+      price: 250,
+      description: 'Textured cobalt scarf with soft loops and drape.',
+      image: 'assets/kninz/cobalt-cascade-scarf.svg',
+      quantity: 0
+    },
+    {
+      id: 'cobalt-hug-poncho',
+      name: 'Cobalt Hug Poncho',
+      type: 'poncho',
+      price: 350,
+      description: 'Plush cobalt poncho that feels like a wearable hug.',
+      image: 'assets/kninz/cobalt-hug-poncho.svg',
+      quantity: 0
+    },
+    {
+      id: 'midnight-plush-poncho',
+      name: 'Midnight Plush Poncho',
+      type: 'poncho',
+      price: 350,
+      description: 'Deep blue plush poncho with airy, swingy drape.',
+      image: 'assets/kninz/midnight-plush-poncho.svg',
+      quantity: 0
+    },
+    {
       id: 'purple-cowl',
       name: 'Plum Cowl',
       type: 'scarf',

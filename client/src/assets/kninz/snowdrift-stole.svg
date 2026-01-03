@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Snowdrift Stole">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fefefe"/>
+      <stop offset="100%" stop-color="#e7edf2"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg2)" rx="32"/>
+  <path d="M180 110c90 40 190 40 280 0l30 120c-20 70-80 120-160 160-60-10-120-40-170-85-22-20-36-45-44-74z" fill="#f9fcff" opacity="0.88"/>
+  <path d="M140 330c110 80 250 80 360 0" fill="none" stroke="#d9e3ed" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+  <path d="M130 500c130 70 270 70 400 0" fill="none" stroke="#c6d2dd" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="44" fill="#3f4d5b">Snowdrift Stole</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#607080">Long, plush scarf for winter strolls</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#7d8c9a">Kninz limited drop</text>
+</svg>

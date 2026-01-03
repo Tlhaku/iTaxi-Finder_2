@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Pearl Clasp Capelet">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8f1e4"/>
+      <stop offset="100%" stop-color="#ebd6b3"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg4)" rx="32"/>
+  <circle cx="320" cy="340" r="180" fill="#fff4e2" opacity="0.9"/>
+  <circle cx="320" cy="340" r="70" fill="none" stroke="#cdb89a" stroke-width="10" stroke-dasharray="2 16" opacity="0.7"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="44" fill="#5b4b34">Pearl Clasp Capelet</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#6c5a41">Vintage pin detail, soft glow</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#7b664c">Kninz limited drop</text>
+</svg>
