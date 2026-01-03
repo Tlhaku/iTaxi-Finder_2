@@ -11,6 +11,7 @@ const { Server } = require('socket.io');
 
 const User = require('./models/User');
 const Order = require('./models/Order');
+const Product = require('./models/Product');
 
 dotenv.config();
 
@@ -32,11 +33,71 @@ const JWT_SECRET = process.env.JWT_SECRET || 'development-secret';
 const PORT = process.env.PORT || 4000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/kninz-store';
 
-const PRODUCT_CATALOG = {
-  poncho: { name: 'Poncho', price: 350 },
-  hat: { name: 'Hat', price: 150 },
-  scarf: { name: 'Scarf', price: 250 }
-};
+const DEFAULT_PRODUCTS = [
+  {
+    name: 'Snowy Whisper Poncho',
+    type: 'poncho',
+    price: 350,
+    description: 'Feathery white poncho that drapes softly for effortless layering.',
+    image: 'assets/kninz/photos/snowy-whisper-poncho.svg'
+  },
+  {
+    name: 'Snowdrift Plush Scarf',
+    type: 'scarf',
+    price: 250,
+    description: 'Plush snowy wrap that sits comfortably over tanks or tees.',
+    image: 'assets/kninz/photos/snowdrift-plush-scarf.svg'
+  },
+  {
+    name: 'Vanilla Embrace Shawl',
+    type: 'poncho',
+    price: 350,
+    description: 'Cream triangle shawl with a lofty hand-knit texture.',
+    image: 'assets/kninz/photos/vanilla-embrace-shawl.svg'
+  },
+  {
+    name: 'Pearl Pin Capelet',
+    type: 'poncho',
+    price: 350,
+    description: 'Chunky knit capelet finished with a vintage-style clasp.',
+    image: 'assets/kninz/photos/pearl-pin-capelet.svg'
+  },
+  {
+    name: 'Sapphire Fringe Poncho',
+    type: 'poncho',
+    price: 350,
+    description: 'Bold cobalt poncho with playful fringe for joyful movement.',
+    image: 'assets/kninz/photos/sapphire-fringe-poncho.svg'
+  },
+  {
+    name: 'Heather Frost Cowl',
+    type: 'scarf',
+    price: 250,
+    description: 'Frosted heather cowl that pulls on for instant coziness.',
+    image: 'assets/kninz/photos/heather-frost-cowl.svg'
+  },
+  {
+    name: 'Cobalt Velvet Scarf',
+    type: 'scarf',
+    price: 250,
+    description: 'Deep cobalt scarf with plush loops and an easy drape.',
+    image: 'assets/kninz/photos/cobalt-velvet-scarf.svg'
+  },
+  {
+    name: 'Cobalt Velvet Poncho',
+    type: 'poncho',
+    price: 350,
+    description: 'Ultra-soft cobalt poncho that feels like a wearable hug.',
+    image: 'assets/kninz/photos/cobalt-velvet-poncho.svg'
+  },
+  {
+    name: 'Cloud Beanie',
+    type: 'hat',
+    price: 150,
+    description: 'Lightweight knit hat that pairs with every winter look.',
+    image: 'assets/kninz/hat-cloud.svg'
+  }
+];
 
 const liveLocations = new Map();
 const yocoTokens = [];
@@ -49,10 +110,23 @@ async function connectToMongo() {
     console.log('Connected to MongoDB');
   } catch (error) {
     console.warn('MongoDB connection failed. Server will continue with limited capabilities.', error.message);
+    throw error;
   }
 }
 
-connectToMongo();
+async function seedCatalog() {
+  try {
+    const count = await Product.estimatedDocumentCount();
+    if (count === 0) {
+      await Product.insertMany(DEFAULT_PRODUCTS);
+      console.log('Seeded default catalog items');
+    }
+  } catch (error) {
+    console.warn('Unable to seed catalog items', error.message);
+  }
+}
+
+connectToMongo().then(seedCatalog).catch(() => {});
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
@@ -141,6 +215,32 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
   res.json(user.toJSON());
 });
 
+app.get('/api/catalog', async (req, res) => {
+  try {
+    const items = await Product.find({ is_active: true }).sort({ name: 1 });
+    res.json(items.map(item => item.toJSON()));
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to load catalog' });
+  }
+});
+
+app.post('/api/catalog', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Only admins can add catalog items' });
+  }
+  try {
+    const { name, type, price, description, image, is_active = true } = req.body;
+    if (!name || !type || !price || !description || !image) {
+      return res.status(400).json({ message: 'Name, type, price, description, and image are required.' });
+    }
+    const product = await Product.create({ name, type, price, description, image, is_active });
+    res.status(201).json(product.toJSON());
+  } catch (error) {
+    console.error('Catalog create error', error);
+    res.status(500).json({ message: 'Unable to create catalog item' });
+  }
+});
+
 app.post('/api/orders', authenticate, async (req, res) => {
   try {
     const { role } = req.user;
@@ -148,15 +248,21 @@ app.post('/api/orders', authenticate, async (req, res) => {
       return res.status(403).json({ message: 'Only customers can place orders' });
     }
 
-    const items = (req.body.items || [])
+    const payloadItems = Array.isArray(req.body.items) ? req.body.items : [];
+    const ids = payloadItems.map(i => i.productId).filter(Boolean);
+    const catalog = await Product.find({ _id: { $in: ids }, is_active: true });
+
+    const items = payloadItems
       .map(item => {
-        const catalogItem = PRODUCT_CATALOG[item.type];
-        if (!catalogItem || !item.quantity) return null;
+        const product = catalog.find(c => c._id.toString() === String(item.productId));
+        if (!product) return null;
+        const quantity = Math.max(1, Number(item.quantity || 0));
+        if (!quantity) return null;
         return {
-          name: catalogItem.name,
-          type: item.type,
-          price: catalogItem.price,
-          quantity: Math.max(1, Number(item.quantity))
+          name: product.name,
+          type: product.type,
+          price: product.price,
+          quantity
         };
       })
       .filter(Boolean);

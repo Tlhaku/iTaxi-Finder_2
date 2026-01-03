@@ -4,7 +4,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone: { type: String, required: true },
-  role: { type: String, enum: ['customer', 'deliverer'], default: 'customer' },
+  role: { type: String, enum: ['customer', 'deliverer', 'admin'], default: 'customer' },
   cylinder_manufacturer: { type: String },
   usual_pickup_address: { type: String },
   usual_dropoff_address: { type: String },

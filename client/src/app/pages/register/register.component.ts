@@ -32,6 +32,14 @@ import { AuthService } from '../../services/auth.service';
                 <label>Password</label>
                 <input type="password" formControlName="password" required>
               </div>
+              <div>
+                <label>Role</label>
+                <select formControlName="role">
+                  <option value="customer">Customer</option>
+                  <option value="deliverer">Deliverer</option>
+                  <option value="admin">Admin (manage catalog)</option>
+                </select>
+              </div>
             </div>
             <button class="primary" type="submit" [disabled]="form.invalid || submitting">Register</button>
           </form>

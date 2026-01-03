@@ -56,10 +56,15 @@ The build output is written to `client/dist/basagas-client/` and can be hosted f
 
 ## What this storefront includes
 - Kninz-branded navigation and pages for home, shopping, lookbook/pricing, delivery coverage, ride-share info, and testimonials.
-- Product gallery with ponchos, scarves, and hats plus quantity controls and a cart summary.
+- Product gallery with ponchos, scarves, and hats plus quantity controls and a cart summary. The shop and collection pages now surface the latest knitwear drop with photo placeholders stored under `client/src/assets/kninz/photos`.
 - Checkout form capturing delivery details, payment method selection (Yoco, PayGate, iKhokha), and a ride-share opt-in to lower courier costs.
 - Express/Mongo API that validates items against the catalog and records delivery preferences and subtotal.
 - Google Maps-based delivery coverage view.
+
+## Managing the catalog (admin)
+- Register a user with the **Admin (manage catalog)** role on `/register` to obtain catalog editing rights.
+- Add your advert images to `client/src/assets/kninz/photos/` (or provide an externally hosted URL) and use the **Catalog manager** form on the Shop page to publish the name, description, price, and image path.
+- Catalog data is stored in MongoDB via the new `Product` collection; the server seeds the initial Kninz items on first run if the collection is empty.
 
 ## Testing
 No automated tests ship with this MVP. You can lint or unit-test the Angular app with `npm run test` from the `client` folder once you have Chrome installed locally. The server exposes a placeholder `npm test` script.

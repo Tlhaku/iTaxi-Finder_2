@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ApiService } from '../../services/api.service';
 
 @Component({
   selector: 'app-pricing',
@@ -11,6 +12,24 @@ import { CommonModule } from '@angular/common';
       <div class="container">
         <h2 class="section-title">The Kninz collection</h2>
         <p class="section-subtitle">Classic, cozy, and priced simply. All pieces are handmade and ready to deliver.</p>
+
+        <div class="collection-grid" *ngIf="catalog().length; else catalogFallback">
+          <div class="card collection" *ngFor="let item of catalog(); trackBy: trackById">
+            <div class="thumb" [style.backgroundImage]="'url(' + item.image + ')'"></div>
+            <div class="body">
+              <div class="header">
+                <h3>{{ item.name }}</h3>
+                <span class="badge">{{ item.type }}</span>
+              </div>
+              <p class="description">{{ item.description }}</p>
+              <div class="price">R{{ item.price }}<span> / piece</span></div>
+            </div>
+          </div>
+        </div>
+
+        <ng-template #catalogFallback>
+          <div class="card info">Loading the latest drop...</div>
+        </ng-template>
 
         <div class="pricing-grid">
           <div class="card" *ngFor="let tier of tiers">
@@ -37,10 +56,24 @@ import { CommonModule } from '@angular/common';
     </section>
   `
 })
-export class PricingComponent {
+export class PricingComponent implements OnInit {
+  private readonly api = inject(ApiService);
+
+  catalog = signal<any[]>([]);
   tiers = [
     { name: 'Ponchos', price: 350, unit: 'piece', detail: 'Textured, drapey silhouettes' },
     { name: 'Hats', price: 150, unit: 'piece', detail: 'Soft beanies and berets' },
     { name: 'Scarves & Cowls', price: 250, unit: 'piece', detail: 'Wraps, cowls, and long scarves' }
   ];
+
+  ngOnInit(): void {
+    this.api.getCatalog().subscribe({
+      next: items => this.catalog.set(items || []),
+      error: () => this.catalog.set([])
+    });
+  }
+
+  trackById(_: number, item: any) {
+    return item._id || item.id;
+  }
 }

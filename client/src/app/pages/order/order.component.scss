@@ -191,3 +191,58 @@ input, select {
     color: #6b7280;
   }
 }
+
+.card.info {
+  text-align: center;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.card.admin {
+  margin-top: 2rem;
+  background: linear-gradient(145deg, rgba(0, 85, 164, 0.04), rgba(255, 255, 255, 0.9));
+
+  code {
+    background: rgba(0, 0, 0, 0.04);
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+  }
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    color: #111827;
+    font-weight: 600;
+
+    span {
+      font-size: 0.95rem;
+    }
+
+    input, select {
+      width: 100%;
+    }
+  }
+
+  .wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+
+  .status {
+    margin: 0;
+  }
+}

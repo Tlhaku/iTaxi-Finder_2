@@ -40,6 +40,16 @@ export class ApiService {
     });
   }
 
+  getCatalog(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/api/catalog`);
+  }
+
+  createCatalogItem(payload: any, token: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/api/catalog`, payload, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }
+
   sendYocoToken(token: string, orderId?: string): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/api/payments/yoco-token`, { token, orderId });
   }
