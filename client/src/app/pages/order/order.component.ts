@@ -230,7 +230,8 @@ export class OrderComponent implements OnInit {
 
     this.api.getConfig().subscribe(cfg => {
       this.paymentMethods = cfg.paymentMethods || this.paymentMethods;
-      if (!this.paymentMethods.includes(this.deliveryForm.value.payment_method)) {
+      const paymentMethod = this.deliveryForm.getRawValue().payment_method;
+      if (!this.paymentMethods.includes(paymentMethod)) {
         this.deliveryForm.patchValue({ payment_method: this.paymentMethods[0] });
       }
     });
