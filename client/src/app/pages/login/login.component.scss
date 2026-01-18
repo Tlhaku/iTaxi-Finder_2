@@ -1,0 +1,22 @@
+.auth-card {
+  max-width: 420px;
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+label {
+  margin-top: 0.5rem;
+}
+
+input {
+  margin-bottom: 0.5rem;
+}
+
+.hint {
+  color: var(--muted-text);
+}
+
+.message {
+  color: var(--muted-text);
+}

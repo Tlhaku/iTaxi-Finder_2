@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Snowfall Wrap">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#dbe5ef"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg)" rx="32"/>
+  <path d="M170 140c70 34 140 34 210 0 25-12 52-12 77 4 40 27 73 90 62 150-6 33-32 62-60 83-60 47-125 69-200 91-70-20-140-50-184-104-25-30-32-76-18-115 20-54 69-104 113-111z" fill="#ffffff" opacity="0.86"/>
+  <path d="M140 320c110 130 240 130 360 0" fill="none" stroke="#c7d6e3" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>
+  <path d="M120 500c130 90 270 90 400 0" fill="none" stroke="#b5c6d6" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="46" fill="#3a4a5a">Snowfall Wrap</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#5c6c7c">Feathery white, drapey silhouette</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#7a8ba1">Kninz limited drop</text>
+</svg>

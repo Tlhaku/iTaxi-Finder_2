@@ -1,0 +1,8 @@
+<svg width="640" height="800" viewBox="0 0 640 800" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="800" rx="32" fill="#eff6ff"/>
+  <rect x="260" y="160" width="120" height="400" rx="40" fill="#1d4ed8" opacity="0.2"/>
+  <rect x="240" y="150" width="160" height="420" rx="50" fill="#2563eb" stroke="#1d4ed8" stroke-width="10"/>
+  <rect x="240" y="560" width="160" height="70" rx="20" fill="#1d4ed8" opacity="0.4"/>
+  <text x="320" y="680" font-family="'Arial', sans-serif" font-size="44" text-anchor="middle" fill="#1d4ed8">Azure Trail</text>
+  <text x="320" y="720" font-family="'Arial', sans-serif" font-size="24" text-anchor="middle" fill="#2563eb">Ribbed scarf</text>
+</svg>

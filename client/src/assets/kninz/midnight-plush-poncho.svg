@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Midnight Plush Poncho">
+  <defs>
+    <linearGradient id="bg9" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#dfe7ff"/>
+      <stop offset="100%" stop-color="#c4d3ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg9)" rx="32"/>
+  <path d="M180 140c70 20 210 20 280 0 40 100-10 210-110 270-80 50-180 50-230 0-70-70-60-190 60-270z" fill="#0d43b5" opacity="0.78"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="44" fill="#152c62">Midnight Plush Poncho</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#1f3d76">Deep blue plush with airy drape</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#2a4a88">Kninz limited drop</text>
+</svg>

@@ -1,1 +1,7 @@
-node_modules
+/dist
+/.angular/cache
+/node_modules
+npm-debug.log
+
+# Coverage reports
+/coverage

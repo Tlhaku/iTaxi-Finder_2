@@ -1,0 +1,8 @@
+<svg width="640" height="800" viewBox="0 0 640 800" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="800" rx="32" fill="#dbeafe"/>
+  <path d="M180 520 C230 240 410 240 460 520 Z" fill="#1e3a8a" opacity="0.25"/>
+  <path d="M150 520 C210 250 430 250 490 520 Z" fill="#0ea5e9" stroke="#1e3a8a" stroke-width="9"/>
+  <path d="M190 370 Q320 260 450 370" fill="none" stroke="#38bdf8" stroke-width="12"/>
+  <text x="320" y="620" font-family="'Arial', sans-serif" font-size="44" text-anchor="middle" fill="#1e3a8a">Midnight Poncho</text>
+  <text x="320" y="668" font-family="'Arial', sans-serif" font-size="24" text-anchor="middle" fill="#0f172a">Velvety blue knit</text>
+</svg>

@@ -1,0 +1,7 @@
+<svg width="640" height="800" viewBox="0 0 640 800" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="800" rx="32" fill="#f8fafc"/>
+  <path d="M160 520 C200 260 440 260 480 520 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="10"/>
+  <path d="M200 300 Q320 180 440 300" fill="none" stroke="#e5e7eb" stroke-width="12" stroke-linecap="round"/>
+  <text x="320" y="620" font-family="'Arial', sans-serif" font-size="44" text-anchor="middle" fill="#111827">Frosted Wrap</text>
+  <text x="320" y="668" font-family="'Arial', sans-serif" font-size="24" text-anchor="middle" fill="#4b5563">Layered ivory texture</text>
+</svg>

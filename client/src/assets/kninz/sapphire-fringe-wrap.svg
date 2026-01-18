@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Sapphire Fringe Wrap">
+  <defs>
+    <linearGradient id="bg5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e4efff"/>
+      <stop offset="100%" stop-color="#c5d8ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg5)" rx="32"/>
+  <path d="M140 160c120-40 240-40 360 0 10 80-40 170-110 230-80 70-170 90-230 70-70-30-120-110-110-200 4-42 32-80 90-100z" fill="#2d6bff" opacity="0.72"/>
+  <path d="M160 520c40 20 80 20 120 0s80-20 120 0 80 20 120 0" fill="none" stroke="#1c4fbf" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+  <text x="50%" y="72%" text-anchor="middle" font-family="'Playfair Display', 'Georgia', serif" font-size="44" fill="#123066">Sapphire Fringe Wrap</text>
+  <text x="50%" y="79%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="20" fill="#1f3e7a">Bold cobalt with playful fringe</text>
+  <text x="50%" y="88%" text-anchor="middle" font-family="'Work Sans', 'Arial', sans-serif" font-size="18" fill="#284a88">Kninz limited drop</text>
+</svg>

@@ -1,0 +1,126 @@
+@use 'sass:color';
+
+$primary-color: #0055a4;
+$accent-color: #f9b234;
+
+:root {
+  --primary-color: #{$primary-color};
+  --accent-color: #{$accent-color};
+  --background-color: #f5f7fb;
+  --card-background: #ffffff;
+  --text-color: #1c1f2e;
+  --muted-text: #5a6271;
+  --border-radius: 16px;
+  font-family: 'Poppins', sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.card {
+  background: var(--card-background);
+  border-radius: var(--border-radius);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.06);
+  padding: 2rem;
+}
+
+button.primary {
+  background: linear-gradient(135deg, var(--primary-color), #003a73);
+  border: none;
+  color: #fff;
+  padding: 0.85rem 2rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(0, 85, 164, 0.25);
+  }
+}
+
+section.page-section {
+  padding: 4rem 0 6rem;
+}
+
+.section-title {
+  font-size: 2.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.section-subtitle {
+  color: var(--muted-text);
+  margin-bottom: 3rem;
+}
+
+form .form-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  form .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+label {
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+input, select {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid #d6d9e4;
+  border-radius: 12px;
+  font-size: 1rem;
+  background: #fdfdfd;
+  box-sizing: border-box;
+}
+
+.nav-spacer {
+  height: 72px;
+}
+
+.map-container {
+  height: 480px;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.track-layout {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: color.mix($accent-color, white, 80%);
+  color: #7b4b00;
+  font-weight: 600;
+}
